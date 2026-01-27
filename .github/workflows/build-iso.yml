@@ -16,9 +16,9 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
-      - name: Install dependencies
+      - name: Install dependencies and live-build
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -30,11 +30,8 @@ jobs:
             grub-pc-bin \
             grub-efi-amd64-bin \
             mtools \
-            dosfstools
-      
-      - name: Install live-build
-        run: |
-          sudo apt-get install -y live-build
+            dosfstools \
+            live-build
       
       - name: Setup build environment
         run: |
@@ -84,14 +81,14 @@ jobs:
           EOF
       
       - name: Upload ISO artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: gvos-iso
           path: artifacts/*.iso
           retention-days: 30
       
       - name: Upload build info
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: build-info
           path: artifacts/build-info.txt

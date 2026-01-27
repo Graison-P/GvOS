@@ -27,7 +27,6 @@ if command -v plymouth-set-default-theme >/dev/null 2>&1; then
 fi
 
 # Create a symlink for the default Plymouth theme
-mkdir -p /usr/share/plymouth/themes/default.plymouth
 ln -sf /usr/share/plymouth/themes/gvos/gvos.plymouth /usr/share/plymouth/themes/default.plymouth 2>/dev/null || true
 
 echo "Boot theme configuration complete."

@@ -43,7 +43,7 @@ The XFCE configuration provides a Windows 11-inspired user interface with:
 
 **Location:** `config/includes.chroot/usr/share/sounds/gvos/`
 
-The GvOS sound theme maps system sound files to various desktop events:
+The GvOS sound theme maps system sound files (located in `/usr/share/sounds/`) to various desktop events using symbolic links:
 - Login/logout sounds
 - Error and warning notifications
 - System shutdown sounds
@@ -185,9 +185,9 @@ Replace `gvosicon.png` files in:
 
 ### Adding Sound Files
 
-1. Copy your sound files (.wav or .ogg) to the repository
-2. Create symbolic links in `config/includes.chroot/usr/share/sounds/gvos/stereo/`
-3. Follow the XDG Sound Theme naming convention
+1. Copy your sound files (.wav or .ogg) to the repository's `/usr/share/sounds/` directory
+2. Create symbolic links in `config/includes.chroot/usr/share/sounds/gvos/stereo/` that point to your sound files using relative paths (e.g., `../../../sounds/yourfile.wav`)
+3. Follow the XDG Sound Theme naming convention (e.g., `dialog-error.wav`, `desktop-login.wav`, etc.)
 
 ### Adding Packages
 
