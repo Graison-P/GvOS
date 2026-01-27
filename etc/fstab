@@ -1,0 +1,6 @@
+# /etc/fstab: static file system information
+#
+# <file system> <mount point>   <type>  <options>       <dump>  <pass>
+# 
+# This is a placeholder file for GvOS filesystem table configuration
+# Add your filesystem mount points here

@@ -1,0 +1,3 @@
+# Kernel placeholder
+# In a real GvOS system, the Linux kernel image would be placed here
+# Example filename: vmlinuz-5.10.0-gvos

@@ -1,0 +1,9 @@
+NAME="GvOS"
+VERSION="1.0 (Foundation)"
+ID=gvos
+ID_LIKE=debian
+PRETTY_NAME="GvOS 1.0"
+VERSION_ID="1.0"
+HOME_URL="https://github.com/Graison-P/GvOS"
+SUPPORT_URL="https://github.com/Graison-P/GvOS/issues"
+BUG_REPORT_URL="https://github.com/Graison-P/GvOS/issues"
