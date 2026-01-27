@@ -298,9 +298,10 @@ step_network_configuration() {
     
     # Get list of Wi-Fi networks
     local networks=()
-    while IFS= read -r line; do
-        if [ -n "${line}" ]; then
-            networks+=("${line}")
+    local ssid
+    while IFS= read -r ssid; do
+        if [ -n "${ssid}" ]; then
+            networks+=("${ssid}")
         fi
     done < <(nmcli -t -f SSID device wifi list 2>/dev/null | sort -u | grep -v '^$' || true)
     
@@ -338,7 +339,8 @@ step_network_configuration() {
             echo ""
             
             echo "Connecting to '${SELECTED_NETWORK}'..."
-            if nmcli device wifi connect "${SELECTED_NETWORK}" password "${NETWORK_PASSWORD}" 2>/dev/null; then
+            # Use stdin to avoid exposing password in process list
+            if printf "%s\n" "${NETWORK_PASSWORD}" | nmcli device wifi connect "${SELECTED_NETWORK}" password-stdin 2>/dev/null; then
                 echo -e "${COLOR_GREEN}✓ Connected successfully${COLOR_RESET}"
                 log_message "Connected to network: ${SELECTED_NETWORK}"
             else
@@ -348,6 +350,8 @@ step_network_configuration() {
                     cleanup_and_exit 0
                 fi
             fi
+            # Clear password from memory
+            NETWORK_PASSWORD=""
         fi
     fi
     
@@ -366,9 +370,9 @@ step_disk_partitioning() {
     
     # List available disks
     echo "Available disks:"
-    lsblk -d -n -o NAME,SIZE,TYPE | grep disk | while read -r name size type; do
+    while IFS= read -r name size _; do
         echo -e "  ${COLOR_BOLD}/dev/${name}${COLOR_RESET} - ${size}"
-    done
+    done < <(lsblk -d -n -o NAME,SIZE,TYPE | grep disk)
     echo ""
     
     # Get disk selection
@@ -728,6 +732,20 @@ Press ENTER to exit the installer..."
 ################################################################################
 
 main() {
+    # Load configuration file if it exists
+    local config_file="/etc/gvos-installer.conf"
+    if [ -f "${config_file}" ]; then
+        # Source the configuration file safely
+        # shellcheck source=/dev/null
+        source "${config_file}" 2>/dev/null || true
+        
+        # Override defaults with config values if set
+        [ -n "${INSTALLER_HOSTNAME:-}" ] && DEFAULT_HOSTNAME="${INSTALLER_HOSTNAME}"
+        [ -n "${INSTALLER_USERNAME:-}" ] && DEFAULT_USERNAME="${INSTALLER_USERNAME}"
+        [ -n "${INSTALLER_TIMEZONE:-}" ] && DEFAULT_TIMEZONE="${INSTALLER_TIMEZONE}"
+        [ -n "${INSTALLER_LOG_FILE:-}" ] && LOG_FILE="${INSTALLER_LOG_FILE}"
+    fi
+    
     # Initialize logging
     mkdir -p "$(dirname "${LOG_FILE}")"
     : > "${LOG_FILE}"
