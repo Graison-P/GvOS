@@ -1,0 +1,12 @@
+[Unit]
+Description=GvOS Shutdown Sound
+DefaultDependencies=no
+Before=shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'source /usr/share/sounds/sound-events.sh && system_shutdown'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=shutdown.target
