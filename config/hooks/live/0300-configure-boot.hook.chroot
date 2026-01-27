@@ -1,0 +1,32 @@
+#!/bin/bash
+# Hook to configure GRUB and Plymouth boot themes
+
+set -e
+
+echo "Configuring GRUB theme..."
+
+# Update GRUB configuration to use GvOS theme
+if [ -f /etc/default/grub ]; then
+    # Add GvOS theme configuration
+    sed -i 's|^#\?GRUB_THEME=.*|GRUB_THEME="/boot/grub/themes/gvos/theme.txt"|' /etc/default/grub
+    
+    # If GRUB_THEME doesn't exist, add it
+    if ! grep -q "^GRUB_THEME=" /etc/default/grub; then
+        echo 'GRUB_THEME="/boot/grub/themes/gvos/theme.txt"' >> /etc/default/grub
+    fi
+    
+    # Set boot parameters for splash screen
+    sed -i 's|^GRUB_CMDLINE_LINUX_DEFAULT=.*|GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"|' /etc/default/grub
+fi
+
+echo "Configuring Plymouth theme..."
+
+# Set GvOS Plymouth theme as default
+if command -v plymouth-set-default-theme >/dev/null 2>&1; then
+    plymouth-set-default-theme -R gvos 2>/dev/null || true
+fi
+
+# Create a symlink for the default Plymouth theme
+ln -sf /usr/share/plymouth/themes/gvos/gvos.plymouth /usr/share/plymouth/themes/default.plymouth 2>/dev/null || true
+
+echo "Boot theme configuration complete."

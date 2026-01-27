@@ -1,0 +1,47 @@
+# XFCE Desktop Environment packages
+xfce4
+xfce4-goodies
+xfce4-terminal
+xfce4-screensaver
+xfce4-power-manager
+xfce4-notifyd
+xfce4-pulseaudio-plugin
+lightdm
+lightdm-gtk-greeter
+lightdm-gtk-greeter-settings
+
+# Display and graphics
+xserver-xorg
+xserver-xorg-video-all
+
+# GTK themes
+adwaita-icon-theme
+papirus-icon-theme
+gnome-themes-extra
+
+# Sound system
+pulseaudio
+pulseaudio-utils
+pavucontrol
+alsa-utils
+
+# Boot and splash
+plymouth
+plymouth-themes
+
+# Network
+network-manager
+network-manager-gnome
+
+# System utilities
+dbus-x11
+gvfs
+gvfs-backends
+thunar-volman
+tumbler
+
+# File archiving
+file-roller
+
+# Basic applications
+firefox-esr

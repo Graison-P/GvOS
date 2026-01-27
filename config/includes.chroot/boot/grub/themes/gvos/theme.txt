@@ -1,0 +1,62 @@
+# GRUB2 GvOS Theme
+# Windows 11 inspired dark theme
+
+# General settings
+title-text: "GvOS"
+desktop-image: "background.png"
+desktop-color: "#1e1e1e"
+terminal-font: "Terminus Regular 14"
+
+# Boot menu
++ boot_menu {
+  left = 25%
+  width = 50%
+  top = 35%
+  height = 40%
+  item_font = "Sans Regular 16"
+  item_color = "#cccccc"
+  selected_item_color = "#ffffff"
+  selected_item_pixmap_style = "select_*.png"
+  item_height = 32
+  item_padding = 8
+  item_spacing = 4
+  icon_width = 32
+  icon_height = 32
+  item_icon_space = 8
+}
+
+# Title text
++ label {
+  top = 20%
+  left = 0
+  width = 100%
+  height = 48
+  text = "GvOS"
+  color = "#ffffff"
+  font = "Sans Bold 24"
+  align = "center"
+}
+
+# Logo
++ image {
+  top = 10%
+  left = 45%
+  width = 128
+  height = 128
+  file = "gvosicon.png"
+}
+
+# Progress bar
++ progress_bar {
+  id = "__timeout__"
+  left = 25%
+  width = 50%
+  top = 80%
+  height = 24
+  font = "Sans Regular 12"
+  text_color = "#cccccc"
+  fg_color = "#2563eb"
+  bg_color = "#3a3a3a"
+  border_color = "#666666"
+  text = "@TIMEOUT_NOTIFICATION_LONG@"
+}

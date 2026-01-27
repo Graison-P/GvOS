@@ -148,6 +148,46 @@ This is the foundational structure for GvOS. Current status:
 ✅ Custom sound placeholders included  
 ✅ Documentation provided  
 ✅ Fullscreen installer implemented  
+✅ XFCE desktop environment with Windows 11-inspired UI  
+✅ Custom GRUB and Plymouth boot themes  
+✅ Sound theme integration  
+✅ Automated ISO building with GitHub Actions  
+
+## XFCE Desktop Environment
+
+GvOS now includes a fully customized XFCE desktop environment with:
+
+### Features
+- **Windows 11-inspired UI** - Rounded taskbar with dark theme
+- **Custom Branding** - GvOS icon throughout (Start button, boot screen)
+- **Dark Mode** - Adwaita-dark GTK theme and Papirus-Dark icons
+- **Boot Themes** - Custom GRUB and Plymouth themes with GvOS branding
+- **Sound Theme** - Mapped system sounds for desktop events
+- **Automated Building** - GitHub Actions workflow for ISO generation
+
+### Building the ISO
+
+See the [XFCE Customization Summary](XFCE-CUSTOMIZATION-SUMMARY.md) for complete documentation.
+
+**Quick build:**
+```bash
+mkdir build && cd build
+lb config
+cp -r ../config/* config/
+chmod +x config/hooks/live/*.hook.chroot
+sudo lb build
+```
+
+**Or use GitHub Actions** - Push to main/develop branch and the ISO will be built automatically.
+
+### Configuration
+
+All customization files are in the `config/` directory:
+- `config/includes.chroot/` - Files copied to the live system
+- `config/hooks/live/` - Customization scripts
+- `config/package-lists/` - Package definitions
+
+See [config/README.md](config/README.md) for detailed documentation.
 
 ### Next Steps
 
@@ -155,8 +195,6 @@ This is the foundational structure for GvOS. Current status:
 - Implement custom init system or systemd configuration
 - Complete package management integration
 - Develop custom system services
-- Replace sound placeholders with actual audio files
-- Add desktop environment configuration
 
 ## Contributing
 
