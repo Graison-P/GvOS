@@ -941,6 +941,18 @@ EOF
         chroot "${INSTALL_ROOT}" usermod -aG sudo "${USERNAME}"
         log_message "User created: ${USERNAME}"
         
+        # Create custom folders in user's home directory
+        echo "Creating user directories..."
+        local user_home="/home/${USERNAME}"
+        local custom_dirs=("Music" "Videos" "Code" "Other" "Documents")
+        
+        for dir in "${custom_dirs[@]}"; do
+            chroot "${INSTALL_ROOT}" mkdir -p "${user_home}/${dir}"
+            chroot "${INSTALL_ROOT}" chown "${USERNAME}:${USERNAME}" "${user_home}/${dir}"
+        done
+        
+        log_message "Created custom directories in ${user_home}: ${custom_dirs[*]}"
+        
         # Set root password
         echo "Setting root password..."
         echo "root:${ROOT_PASSWORD}" | chroot "${INSTALL_ROOT}" chpasswd

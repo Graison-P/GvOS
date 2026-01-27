@@ -109,6 +109,7 @@ The GvOS Installer is a kernel-based, text-mode installation program featuring:
 - **Debian Installation**: Automatically downloads and installs the latest Debian stable release using debootstrap
 - **Network Configuration**: Automatic Wi-Fi network scanning and selection
 - **Disk Partitioning**: Automatic partitioning with UEFI/BIOS support
+- **User Configuration**: Creates user accounts with custom home directories (Music, Videos, Code, Other, Documents)
 - **Package Selection**: Choose from predefined package groups or customize
 - **Custom Commands**: Run commands in chroot during installation for advanced customization
 - **Bootloader Installation**: Automatic GRUB installation and configuration

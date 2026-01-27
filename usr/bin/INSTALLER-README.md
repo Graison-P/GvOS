@@ -48,6 +48,7 @@ The GvOS Installer is a fullscreen, kernel-based installation program designed t
 - Optional separate root password
 - Timezone configuration
 - Locale generation (en_US.UTF-8)
+- **Automatic creation of home directory folders**: Music, Videos, Code, Other, Documents
 
 ### 7. Package Selection
 - **Base System**: Essential packages (required)
@@ -132,7 +133,7 @@ Or if you're already root:
 3. **Network Configuration**: Select and connect to Wi-Fi
 4. **Disk Partitioning**: Choose installation disk
 5. **Base Installation**: Install core system
-6. **User Configuration**: Set up hostname, user, passwords
+6. **User Configuration**: Set up hostname, user, passwords, and home directories
 7. **Package Selection**: Choose software to install
 8. **Custom Commands**: Run additional setup commands
 9. **Installation Summary**: Review and confirm
