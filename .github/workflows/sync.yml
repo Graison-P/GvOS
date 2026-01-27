@@ -24,5 +24,5 @@ jobs:
           CODEBERG_USERNAME: ${{ secrets.CODEBERG_USERNAME }}
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
         run: |
-          git remote add codeberg https://$CODEBERG_USERNAME:$CODEBERG_TOKEN@codeberg.org/$CODEBERG_USERNAME/GvOS.git
+          git remote add codeberg ssh://$CODEBERG_USERNAME:$CODEBERG_TOKEN@codeberg.org/GvYoutube/GvOS.git
           git push --mirror codeberg
