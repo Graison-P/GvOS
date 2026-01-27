@@ -99,23 +99,41 @@ See `/usr/share/sounds/README.md` for information on customizing sounds.
 
 ## Installation
 
-GvOS includes a comprehensive fullscreen installer that provides an Ubuntu Server-like installation experience.
+GvOS includes a comprehensive fullscreen installer that provides an Ubuntu Server-like installation experience and automatically installs the latest Debian release.
 
 ### GvOS Installer
 
 The GvOS Installer is a kernel-based, text-mode installation program featuring:
 
 - **Fullscreen TTY Interface**: Clean, intuitive text-based UI
+- **Debian Installation**: Automatically downloads and installs the latest Debian stable release using debootstrap
 - **Network Configuration**: Automatic Wi-Fi network scanning and selection
-- **Disk Partitioning**: Interactive disk management
+- **Disk Partitioning**: Automatic partitioning with UEFI/BIOS support
 - **Package Selection**: Choose from predefined package groups or customize
-- **Custom Commands**: Run sudo commands during installation for advanced customization
+- **Custom Commands**: Run commands in chroot during installation for advanced customization
+- **Bootloader Installation**: Automatic GRUB installation and configuration
+
+#### Prerequisites
+
+For actual installation (required):
+```bash
+apt-get install debootstrap fdisk e2fsprogs parted
+```
+
+For network configuration (optional):
+```bash
+apt-get install network-manager
+```
 
 #### Running the Installer
 
 ```bash
 sudo /usr/bin/gvos-installer
 ```
+
+The installer will detect available tools and run in either:
+- **Actual Installation Mode**: When all required tools are available (performs real installation)
+- **Simulation Mode**: When tools are missing (demonstrates the installation flow)
 
 For detailed documentation, see [/usr/bin/INSTALLER-README.md](/usr/bin/INSTALLER-README.md).
 

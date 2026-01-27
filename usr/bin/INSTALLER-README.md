@@ -1,6 +1,6 @@
 # GvOS Fullscreen Installer
 
-The GvOS Installer is a fullscreen, kernel-based installation program designed to mimic the functionality and aesthetics of the Ubuntu Server installer. It provides a user-friendly, text-based interface for installing and configuring GvOS.
+The GvOS Installer is a fullscreen, kernel-based installation program designed to mimic the functionality and aesthetics of the Ubuntu Server installer. It provides a user-friendly, text-based interface for installing and configuring GvOS based on the latest Debian release.
 
 ## Features
 
@@ -10,57 +10,106 @@ The GvOS Installer is a fullscreen, kernel-based installation program designed t
 - Clean, intuitive text-based UI with color support
 - Progress indicators and menu-driven navigation
 
-### 2. Network Configuration
+### 2. Debian Base System Installation
+- **Automatically detects the latest Debian stable release**
+- Uses `debootstrap` to install a minimal Debian base system
+- Configures APT repositories for the detected Debian version
+- Downloads and installs packages directly from Debian mirrors
+- Supports both UEFI and BIOS boot modes
+
+### 3. Network Configuration
 - Automatic scanning for available Wi-Fi networks
 - Easy network selection from a list (no manual SSID entry required)
 - Uses NetworkManager (`nmcli`) for reliable network management
 - Configures network for package installations and updates
 - Option to skip network configuration for offline installations
 
-### 3. Disk Partitioning
+### 4. Disk Partitioning
 - Interactive disk selection
-- Visual display of available disks and sizes
+- **Automatic partitioning with GPT (UEFI) or MBR (BIOS)**
+- Creates EFI partition (512MB) for UEFI systems
+- Creates root partition using remaining disk space
+- Formats partitions with appropriate filesystems (FAT32 for EFI, ext4 for root)
 - Safe partitioning with confirmation prompts
 - Support for various disk types (HDD, SSD, NVMe)
-- EFI and BIOS boot support
 
-### 4. Base System Installation
-- Automated installation of core system packages
+### 5. Base System Installation
+- Downloads and installs the latest Debian stable release
 - Progress tracking during installation
+- Configures package repositories automatically
+- Mounts necessary filesystems for chroot operations
 - Modular package group system
 - Efficient package management using APT
 
-### 5. User Configuration
+### 6. User Configuration
 - Custom hostname setup
-- User account creation
+- User account creation with sudo privileges
 - Secure password entry (hidden input)
 - Optional separate root password
 - Timezone configuration
+- Locale generation (en_US.UTF-8)
 
-### 6. Package Selection
+### 7. Package Selection
 - **Base System**: Essential packages (required)
 - **Development Tools**: Compilers, build tools, version control
 - **Desktop Environment**: LXDE desktop with X.org
 - **Server Packages**: SSH, web servers, databases
 - **Multimedia Applications**: Media players, editors
 
-### 7. Custom Commands Section
+### 8. Bootloader Installation
+- **Automatic GRUB installation** to the selected disk
+- Detects UEFI vs BIOS mode and installs appropriate bootloader
+- Generates GRUB configuration automatically
+- Creates `/etc/fstab` with correct UUIDs
+
+### 9. Custom Commands Section
 - Interactive terminal-like environment
-- Execute custom `sudo` commands during installation
+- **Execute custom commands in the chroot environment**
 - Useful for:
   - Installing additional packages
   - Enabling/disabling services
   - Custom system configurations
   - Running scripts
-- Commands are queued and executed safely
+- Commands are executed in the actual installation (not simulated)
 
-### 8. Installation Summary
+### 10. Installation Summary
 - Review all settings before installation
+- Shows installation mode (Actual or Simulation)
+- Displays detected Debian release
 - Comprehensive overview of selections
 - Ability to go back and change settings
 - Final confirmation before proceeding
 
+## Installation Modes
+
+### Actual Installation Mode
+When all required tools (`debootstrap`, `fdisk`, `mkfs.ext4`, `mount`, `chroot`) are available, the installer runs in **Actual Installation Mode**:
+- Downloads and installs the latest Debian stable release
+- Actually partitions and formats the selected disk
+- Installs GRUB bootloader
+- Configures the system for first boot
+- **WARNING: This will DESTROY all data on the selected disk!**
+
+### Simulation Mode
+If required tools are missing, the installer runs in **Simulation Mode**:
+- Demonstrates the installation flow
+- Does not make any changes to disks
+- Safe for testing and learning
+- Shows what would happen during actual installation
+
 ## Usage
+
+### Prerequisites
+
+For **Actual Installation**, you need:
+```bash
+apt-get install debootstrap fdisk e2fsprogs parted
+```
+
+For **Network Configuration** (optional):
+```bash
+apt-get install network-manager
+```
 
 ### Running the Installer
 
@@ -158,7 +207,23 @@ Modify the default configuration variables:
 DEFAULT_HOSTNAME="gvos"
 DEFAULT_USERNAME="gvos"
 DEFAULT_TIMEZONE="UTC"
+
+# Debian release settings
+DEBIAN_RELEASE="stable"  # stable, testing, unstable, or codename (e.g., bookworm)
+DEBIAN_MIRROR="http://deb.debian.org/debian"
+DEBIAN_SECURITY_MIRROR="http://security.debian.org/debian-security"
 ```
+
+### Customizing Debian Release
+
+By default, the installer uses the latest Debian stable release. You can customize this by editing the `DEBIAN_RELEASE` variable:
+
+- `stable` - Latest stable release (recommended)
+- `testing` - Testing release
+- `unstable` or `sid` - Unstable release
+- Specific codename - e.g., `bookworm`, `bullseye`, `trixie`
+
+The installer automatically detects the codename for the stable release by checking debootstrap scripts.
 
 ### Adding New Installation Steps
 

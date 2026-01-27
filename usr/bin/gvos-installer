@@ -47,6 +47,11 @@ DEFAULT_HOSTNAME="gvos"
 DEFAULT_USERNAME="gvos"
 DEFAULT_TIMEZONE="UTC"
 
+# Debian release settings
+DEBIAN_RELEASE="stable"  # stable, testing, unstable, or codename (e.g., bookworm)
+DEBIAN_MIRROR="http://deb.debian.org/debian"
+DEBIAN_SECURITY_MIRROR="http://security.debian.org/debian-security"
+
 # Installation paths
 INSTALL_ROOT="/mnt/gvos"
 LOG_FILE="/var/log/gvos-installer.log"
@@ -67,6 +72,8 @@ declare -A PACKAGE_GROUPS=(
 ################################################################################
 
 SELECTED_DISK=""
+SELECTED_PARTITION_ROOT=""
+SELECTED_PARTITION_BOOT=""
 SELECTED_NETWORK=""
 NETWORK_PASSWORD=""
 HOSTNAME=""
@@ -75,6 +82,8 @@ USER_PASSWORD=""
 ROOT_PASSWORD=""
 TIMEZONE=""
 INSTALL_PACKAGES=()
+DEBIAN_CODENAME=""
+ACTUAL_INSTALL_MODE=false  # Set to true to perform actual installation
 
 ################################################################################
 # UTILITY FUNCTIONS
@@ -99,6 +108,14 @@ error_exit() {
 # Cleanup and exit
 cleanup_and_exit() {
     local exit_code="${1:-0}"
+    
+    # Unmount filesystems if they were mounted
+    if [ -n "${INSTALL_ROOT}" ] && mountpoint -q "${INSTALL_ROOT}" 2>/dev/null; then
+        echo ""
+        echo "Unmounting filesystems..."
+        umount -R "${INSTALL_ROOT}" 2>/dev/null || true
+    fi
+    
     # Restore normal terminal
     tput cnorm 2>/dev/null || true
     reset
@@ -256,8 +273,10 @@ step_check_prerequisites() {
     fi
     
     # Check for required commands
-    local required_cmds=("nmcli" "fdisk" "mkfs.ext4" "mount" "apt-get" "chroot")
+    local required_cmds=("debootstrap" "fdisk" "mkfs.ext4" "mount" "chroot")
+    local optional_cmds=("nmcli" "parted" "lsblk")
     local missing_cmds=()
+    local missing_optional=()
     
     for cmd in "${required_cmds[@]}"; do
         if ! command -v "${cmd}" &> /dev/null; then
@@ -265,17 +284,79 @@ step_check_prerequisites() {
         fi
     done
     
+    for cmd in "${optional_cmds[@]}"; do
+        if ! command -v "${cmd}" &> /dev/null; then
+            missing_optional+=("${cmd}")
+        fi
+    done
+    
     if [ ${#missing_cmds[@]} -gt 0 ]; then
-        echo -e "${COLOR_YELLOW}Warning: The following commands are not available:${COLOR_RESET}"
+        echo -e "${COLOR_RED}Error: The following required commands are missing:${COLOR_RESET}"
         printf '  - %s\n' "${missing_cmds[@]}"
         echo ""
-        if ! prompt_yes_no "Continue anyway?" "n"; then
-            cleanup_and_exit 0
+        echo "Please install them before running the installer:"
+        echo "  apt-get install debootstrap fdisk e2fsprogs"
+        echo ""
+        if ! prompt_yes_no "Continue anyway (simulation mode)?" "n"; then
+            cleanup_and_exit 1
         fi
+        ACTUAL_INSTALL_MODE=false
+    else
+        ACTUAL_INSTALL_MODE=true
+    fi
+    
+    if [ ${#missing_optional[@]} -gt 0 ]; then
+        echo -e "${COLOR_YELLOW}Warning: The following optional commands are not available:${COLOR_RESET}"
+        printf '  - %s\n' "${missing_optional[@]}"
+        echo ""
     fi
     
     echo -e "${COLOR_GREEN}✓ Prerequisites check completed${COLOR_RESET}"
+    
+    # Detect Debian release if in actual install mode
+    if [ "${ACTUAL_INSTALL_MODE}" = true ]; then
+        echo ""
+        echo "Detecting latest Debian release..."
+        detect_debian_release
+        echo -e "${COLOR_GREEN}✓ Will install Debian ${DEBIAN_CODENAME}${COLOR_RESET}"
+    fi
+    
     sleep 1
+}
+
+# Helper function to detect latest Debian release
+detect_debian_release() {
+    # Try to detect the latest stable Debian release
+    # First, try to get it from the Debian API
+    if command -v curl &> /dev/null; then
+        local release_info
+        release_info=$(curl -s "https://www.debian.org/releases/stable/" 2>/dev/null | grep -oP 'Debian \K[0-9.]+' | head -1)
+        if [ -n "${release_info}" ]; then
+            log_message "Detected Debian version: ${release_info}"
+        fi
+    fi
+    
+    # Get codename from debootstrap scripts
+    if [ -d "/usr/share/debootstrap/scripts" ]; then
+        # Find the symlink for 'stable'
+        if [ -L "/usr/share/debootstrap/scripts/stable" ]; then
+            DEBIAN_CODENAME=$(readlink "/usr/share/debootstrap/scripts/stable" | xargs basename)
+            log_message "Detected Debian codename from debootstrap: ${DEBIAN_CODENAME}"
+        else
+            # Default to bookworm (Debian 12, current stable as of 2024)
+            DEBIAN_CODENAME="bookworm"
+            log_message "Using default Debian codename: ${DEBIAN_CODENAME}"
+        fi
+    else
+        # Fallback to a known stable release
+        DEBIAN_CODENAME="bookworm"
+        log_message "Using fallback Debian codename: ${DEBIAN_CODENAME}"
+    fi
+    
+    # If DEBIAN_RELEASE is a specific codename, use it
+    if [[ "${DEBIAN_RELEASE}" =~ ^(bookworm|bullseye|trixie|sid)$ ]]; then
+        DEBIAN_CODENAME="${DEBIAN_RELEASE}"
+    fi
 }
 
 # Step 3: Network configuration
@@ -400,15 +481,73 @@ step_disk_partitioning() {
     echo "Partitioning ${SELECTED_DISK}..."
     log_message "Partitioning disk: ${SELECTED_DISK}"
     
-    # This is a placeholder - in a real installer, you would use fdisk/parted
-    # to create partitions. For safety, we'll just simulate this.
-    echo -e "${COLOR_YELLOW}[SIMULATION MODE] Partitioning would happen here${COLOR_RESET}"
-    echo "  - Creating EFI partition (512MB)"
-    echo "  - Creating root partition (remaining space)"
-    sleep 2
+    if [ "${ACTUAL_INSTALL_MODE}" = true ]; then
+        # Actual disk partitioning
+        echo "Creating partition table..."
+        
+        # Check if system uses UEFI or BIOS
+        local firmware_type="bios"
+        if [ -d "/sys/firmware/efi" ]; then
+            firmware_type="uefi"
+            echo "Detected UEFI firmware"
+        else
+            echo "Detected BIOS firmware"
+        fi
+        
+        # Unmount any existing partitions on the disk
+        umount "${SELECTED_DISK}"* 2>/dev/null || true
+        
+        # Create new partition table
+        if [ "${firmware_type}" = "uefi" ]; then
+            # UEFI: GPT partition table with EFI partition
+            echo "Creating GPT partition table for UEFI..."
+            parted -s "${SELECTED_DISK}" mklabel gpt
+            parted -s "${SELECTED_DISK}" mkpart primary fat32 1MiB 513MiB
+            parted -s "${SELECTED_DISK}" set 1 esp on
+            parted -s "${SELECTED_DISK}" mkpart primary ext4 513MiB 100%
+            
+            SELECTED_PARTITION_BOOT="${SELECTED_DISK}1"
+            SELECTED_PARTITION_ROOT="${SELECTED_DISK}2"
+            
+            # Format partitions
+            echo "Formatting EFI partition..."
+            mkfs.fat -F32 "${SELECTED_PARTITION_BOOT}"
+            
+        else
+            # BIOS: MBR partition table
+            echo "Creating MBR partition table for BIOS..."
+            parted -s "${SELECTED_DISK}" mklabel msdos
+            parted -s "${SELECTED_DISK}" mkpart primary ext4 1MiB 100%
+            parted -s "${SELECTED_DISK}" set 1 boot on
+            
+            SELECTED_PARTITION_ROOT="${SELECTED_DISK}1"
+        fi
+        
+        # Format root partition
+        echo "Formatting root partition..."
+        mkfs.ext4 -F "${SELECTED_PARTITION_ROOT}"
+        
+        # Mount partitions
+        echo "Mounting partitions..."
+        mkdir -p "${INSTALL_ROOT}"
+        mount "${SELECTED_PARTITION_ROOT}" "${INSTALL_ROOT}"
+        
+        if [ "${firmware_type}" = "uefi" ]; then
+            mkdir -p "${INSTALL_ROOT}/boot/efi"
+            mount "${SELECTED_PARTITION_BOOT}" "${INSTALL_ROOT}/boot/efi"
+        fi
+        
+        echo -e "${COLOR_GREEN}✓ Disk partitioning completed${COLOR_RESET}"
+        log_message "Partitioning completed: boot=${SELECTED_PARTITION_BOOT:-none}, root=${SELECTED_PARTITION_ROOT}"
+    else
+        # Simulation mode
+        echo -e "${COLOR_YELLOW}[SIMULATION MODE] Partitioning would happen here${COLOR_RESET}"
+        echo "  - Creating EFI partition (512MB)"
+        echo "  - Creating root partition (remaining space)"
+        sleep 2
+        echo -e "${COLOR_GREEN}✓ Disk partitioning completed (simulated)${COLOR_RESET}"
+    fi
     
-    echo ""
-    echo -e "${COLOR_GREEN}✓ Disk partitioning completed${COLOR_RESET}"
     echo ""
     echo "Press ENTER to continue..."
     read -r
@@ -422,26 +561,76 @@ step_base_installation() {
     
     log_message "Installing base system..."
     
-    # Create installation root
-    echo "Creating installation directory..."
+    # Create installation root if not already created
     mkdir -p "${INSTALL_ROOT}"
     
-    # Simulate base system installation
-    echo ""
-    echo "Installing base packages..."
-    echo -e "${COLOR_YELLOW}[SIMULATION MODE] Base installation would happen here${COLOR_RESET}"
+    if [ "${ACTUAL_INSTALL_MODE}" = true ]; then
+        # Actual Debian installation using debootstrap
+        echo ""
+        echo "Installing Debian ${DEBIAN_CODENAME} base system..."
+        echo "This may take several minutes depending on your network speed..."
+        echo ""
+        
+        log_message "Running debootstrap for ${DEBIAN_CODENAME}"
+        
+        # Run debootstrap to install minimal Debian system
+        if debootstrap --arch=amd64 "${DEBIAN_CODENAME}" "${INSTALL_ROOT}" "${DEBIAN_MIRROR}"; then
+            echo ""
+            echo -e "${COLOR_GREEN}✓ Base system installation completed${COLOR_RESET}"
+            log_message "Debootstrap completed successfully"
+            
+            # Configure APT sources
+            echo ""
+            echo "Configuring package repositories..."
+            cat > "${INSTALL_ROOT}/etc/apt/sources.list" <<EOF
+# Debian ${DEBIAN_CODENAME} repositories
+deb ${DEBIAN_MIRROR} ${DEBIAN_CODENAME} main contrib non-free non-free-firmware
+deb-src ${DEBIAN_MIRROR} ${DEBIAN_CODENAME} main contrib non-free non-free-firmware
+
+# Security updates
+deb ${DEBIAN_SECURITY_MIRROR} ${DEBIAN_CODENAME}-security main contrib non-free non-free-firmware
+deb-src ${DEBIAN_SECURITY_MIRROR} ${DEBIAN_CODENAME}-security main contrib non-free non-free-firmware
+
+# Updates
+deb ${DEBIAN_MIRROR} ${DEBIAN_CODENAME}-updates main contrib non-free non-free-firmware
+deb-src ${DEBIAN_MIRROR} ${DEBIAN_CODENAME}-updates main contrib non-free non-free-firmware
+EOF
+            log_message "APT sources configured"
+            
+            # Mount necessary filesystems for chroot
+            echo "Mounting filesystems for chroot environment..."
+            mount --bind /dev "${INSTALL_ROOT}/dev"
+            mount --bind /dev/pts "${INSTALL_ROOT}/dev/pts"
+            mount --bind /proc "${INSTALL_ROOT}/proc"
+            mount --bind /sys "${INSTALL_ROOT}/sys"
+            
+        else
+            echo -e "${COLOR_RED}✗ Base system installation failed${COLOR_RESET}"
+            log_message "ERROR: Debootstrap failed"
+            if ! prompt_yes_no "Continue anyway?" "n"; then
+                cleanup_and_exit 1
+            fi
+        fi
+        
+    else
+        # Simulation mode
+        echo ""
+        echo "Installing base packages..."
+        echo -e "${COLOR_YELLOW}[SIMULATION MODE] Base installation would happen here${COLOR_RESET}"
+        
+        local base_packages=("${PACKAGE_GROUPS[base]}" "${PACKAGE_GROUPS[network]}")
+        local total=${#base_packages[@]}
+        
+        for i in "${!base_packages[@]}"; do
+            show_progress "$((i + 1))" "${total}" "Installing base packages"
+            sleep 0.1
+        done
+        
+        echo ""
+        echo ""
+        echo -e "${COLOR_GREEN}✓ Base system installation completed (simulated)${COLOR_RESET}"
+    fi
     
-    local base_packages=("${PACKAGE_GROUPS[base]}" "${PACKAGE_GROUPS[network]}")
-    local total=${#base_packages[@]}
-    
-    for i in "${!base_packages[@]}"; do
-        show_progress "$((i + 1))" "${total}" "Installing base packages"
-        sleep 0.1
-    done
-    
-    echo ""
-    echo ""
-    echo -e "${COLOR_GREEN}✓ Base system installation completed${COLOR_RESET}"
     echo ""
     echo "Press ENTER to continue..."
     read -r
@@ -602,9 +791,18 @@ step_custom_commands() {
         for cmd in "${commands[@]}"; do
             echo -e "${COLOR_CYAN}→${COLOR_RESET} ${cmd}"
             log_message "Custom command: ${cmd}"
-            # In a real installer, execute: chroot "${INSTALL_ROOT}" ${cmd}
-            echo -e "${COLOR_YELLOW}[SIMULATION MODE] Would execute: ${cmd}${COLOR_RESET}"
-            sleep 0.5
+            
+            if [ "${ACTUAL_INSTALL_MODE}" = true ]; then
+                # Execute in chroot environment
+                if chroot "${INSTALL_ROOT}" /bin/bash -c "${cmd}"; then
+                    echo -e "${COLOR_GREEN}  ✓ Success${COLOR_RESET}"
+                else
+                    echo -e "${COLOR_RED}  ✗ Failed (exit code: $?)${COLOR_RESET}"
+                fi
+            else
+                echo -e "${COLOR_YELLOW}[SIMULATION MODE] Would execute: ${cmd}${COLOR_RESET}"
+                sleep 0.5
+            fi
         done
         
         echo ""
@@ -623,6 +821,12 @@ step_installation_summary() {
     echo ""
     
     echo -e "${COLOR_BOLD}Installation Settings:${COLOR_RESET}"
+    if [ "${ACTUAL_INSTALL_MODE}" = true ]; then
+        echo "  Mode:            ${COLOR_GREEN}Actual Installation${COLOR_RESET}"
+        echo "  Debian Release:  ${DEBIAN_CODENAME}"
+    else
+        echo "  Mode:            ${COLOR_YELLOW}Simulation${COLOR_RESET}"
+    fi
     echo "  Hostname:        ${HOSTNAME}"
     echo "  Username:        ${USERNAME}"
     echo "  Timezone:        ${TIMEZONE}"
@@ -655,44 +859,143 @@ step_perform_installation() {
     echo -e "${COLOR_CYAN}${COLOR_BOLD}=== Installing GvOS ===${COLOR_RESET}"
     echo ""
     
-    log_message "Starting installation..."
+    log_message "Starting installation configuration..."
     
-    echo "Installing packages..."
-    echo -e "${COLOR_YELLOW}[SIMULATION MODE] Package installation in progress${COLOR_RESET}"
-    echo ""
-    
-    local total=100
-    for i in $(seq 1 ${total}); do
-        show_progress "${i}" "${total}" "Installing system"
-        sleep 0.05
-    done
-    
-    echo ""
-    echo ""
-    
-    # Simulate creating user
-    echo "Creating user account..."
-    log_message "Creating user: ${USERNAME}"
-    sleep 1
-    
-    # Simulate setting hostname
-    echo "Setting hostname..."
-    log_message "Setting hostname: ${HOSTNAME}"
-    sleep 1
-    
-    # Simulate configuring timezone
-    echo "Configuring timezone..."
-    log_message "Setting timezone: ${TIMEZONE}"
-    sleep 1
-    
-    # Simulate installing bootloader
-    echo "Installing bootloader..."
-    log_message "Installing GRUB bootloader"
-    sleep 2
-    
-    echo ""
-    echo -e "${COLOR_GREEN}✓ Installation completed successfully!${COLOR_RESET}"
-    log_message "Installation completed successfully"
+    if [ "${ACTUAL_INSTALL_MODE}" = true ]; then
+        # Configure the installed system
+        
+        # Set hostname
+        echo "Setting hostname..."
+        echo "${HOSTNAME}" > "${INSTALL_ROOT}/etc/hostname"
+        cat > "${INSTALL_ROOT}/etc/hosts" <<EOF
+127.0.0.1   localhost
+127.0.1.1   ${HOSTNAME}
+
+# The following lines are desirable for IPv6 capable hosts
+::1     localhost ip6-localhost ip6-loopback
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+EOF
+        log_message "Hostname set to: ${HOSTNAME}"
+        
+        # Set timezone
+        echo "Configuring timezone..."
+        chroot "${INSTALL_ROOT}" ln -sf "/usr/share/zoneinfo/${TIMEZONE}" /etc/localtime
+        log_message "Timezone set to: ${TIMEZONE}"
+        
+        # Configure locale
+        echo "Configuring locale..."
+        echo "en_US.UTF-8 UTF-8" >> "${INSTALL_ROOT}/etc/locale.gen"
+        chroot "${INSTALL_ROOT}" locale-gen
+        echo "LANG=en_US.UTF-8" > "${INSTALL_ROOT}/etc/default/locale"
+        
+        # Create user account
+        echo "Creating user account..."
+        chroot "${INSTALL_ROOT}" useradd -m -s /bin/bash "${USERNAME}"
+        echo "${USERNAME}:${USER_PASSWORD}" | chroot "${INSTALL_ROOT}" chpasswd
+        chroot "${INSTALL_ROOT}" usermod -aG sudo "${USERNAME}" 2>/dev/null || true
+        log_message "User created: ${USERNAME}"
+        
+        # Set root password
+        echo "Setting root password..."
+        echo "root:${ROOT_PASSWORD}" | chroot "${INSTALL_ROOT}" chpasswd
+        log_message "Root password set"
+        
+        # Install selected package groups
+        if [ ${#INSTALL_PACKAGES[@]} -gt 0 ]; then
+            echo ""
+            echo "Installing selected packages..."
+            
+            # Update package lists
+            chroot "${INSTALL_ROOT}" apt-get update
+            
+            for group in "${INSTALL_PACKAGES[@]}"; do
+                if [ -n "${PACKAGE_GROUPS[$group]:-}" ]; then
+                    echo "Installing ${group} packages..."
+                    # shellcheck disable=SC2086
+                    chroot "${INSTALL_ROOT}" apt-get install -y ${PACKAGE_GROUPS[$group]} || true
+                fi
+            done
+        fi
+        
+        # Install and configure bootloader
+        echo ""
+        echo "Installing bootloader..."
+        
+        # Install GRUB
+        chroot "${INSTALL_ROOT}" apt-get install -y grub-pc linux-image-amd64
+        
+        # Install GRUB to disk
+        if [ -d "/sys/firmware/efi" ]; then
+            # UEFI system
+            chroot "${INSTALL_ROOT}" apt-get install -y grub-efi-amd64
+            chroot "${INSTALL_ROOT}" grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GvOS
+        else
+            # BIOS system
+            chroot "${INSTALL_ROOT}" grub-install "${SELECTED_DISK}"
+        fi
+        
+        # Generate GRUB configuration
+        chroot "${INSTALL_ROOT}" update-grub
+        log_message "Bootloader installed"
+        
+        # Generate fstab
+        echo "Generating fstab..."
+        {
+            echo "# /etc/fstab: static file system information"
+            echo "UUID=$(blkid -s UUID -o value "${SELECTED_PARTITION_ROOT}")  /  ext4  errors=remount-ro  0  1"
+            if [ -n "${SELECTED_PARTITION_BOOT}" ]; then
+                echo "UUID=$(blkid -s UUID -o value "${SELECTED_PARTITION_BOOT}")  /boot/efi  vfat  umask=0077  0  1"
+            fi
+        } > "${INSTALL_ROOT}/etc/fstab"
+        
+        # Enable networking
+        echo "Configuring network..."
+        chroot "${INSTALL_ROOT}" systemctl enable NetworkManager 2>/dev/null || true
+        
+        echo ""
+        echo -e "${COLOR_GREEN}✓ Installation completed successfully!${COLOR_RESET}"
+        log_message "Installation completed successfully"
+        
+    else
+        # Simulation mode
+        echo "Installing packages..."
+        echo -e "${COLOR_YELLOW}[SIMULATION MODE] Package installation in progress${COLOR_RESET}"
+        echo ""
+        
+        local total=100
+        for i in $(seq 1 ${total}); do
+            show_progress "${i}" "${total}" "Installing system"
+            sleep 0.05
+        done
+        
+        echo ""
+        echo ""
+        
+        # Simulate creating user
+        echo "Creating user account..."
+        log_message "Creating user: ${USERNAME}"
+        sleep 1
+        
+        # Simulate setting hostname
+        echo "Setting hostname..."
+        log_message "Setting hostname: ${HOSTNAME}"
+        sleep 1
+        
+        # Simulate configuring timezone
+        echo "Configuring timezone..."
+        log_message "Setting timezone: ${TIMEZONE}"
+        sleep 1
+        
+        # Simulate installing bootloader
+        echo "Installing bootloader..."
+        log_message "Installing GRUB bootloader"
+        sleep 2
+        
+        echo ""
+        echo -e "${COLOR_GREEN}✓ Installation completed successfully!${COLOR_RESET}"
+        log_message "Installation completed successfully (simulated)"
+    fi
 }
 
 # Step 11: Completion
@@ -743,6 +1046,9 @@ main() {
         [ -n "${INSTALLER_HOSTNAME:-}" ] && DEFAULT_HOSTNAME="${INSTALLER_HOSTNAME}"
         [ -n "${INSTALLER_USERNAME:-}" ] && DEFAULT_USERNAME="${INSTALLER_USERNAME}"
         [ -n "${INSTALLER_TIMEZONE:-}" ] && DEFAULT_TIMEZONE="${INSTALLER_TIMEZONE}"
+        [ -n "${INSTALLER_DEBIAN_RELEASE:-}" ] && DEBIAN_RELEASE="${INSTALLER_DEBIAN_RELEASE}"
+        [ -n "${INSTALLER_DEBIAN_MIRROR:-}" ] && DEBIAN_MIRROR="${INSTALLER_DEBIAN_MIRROR}"
+        [ -n "${INSTALLER_DEBIAN_SECURITY_MIRROR:-}" ] && DEBIAN_SECURITY_MIRROR="${INSTALLER_DEBIAN_SECURITY_MIRROR}"
         [ -n "${INSTALLER_LOG_FILE:-}" ] && LOG_FILE="${INSTALLER_LOG_FILE}"
     fi
     
