@@ -16,7 +16,7 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         
       - name: Set up build environment
         run: |
@@ -36,7 +36,6 @@ jobs:
           echo "Checking asset directories..."
           ls -la usr/share/backgrounds/ || echo "Backgrounds directory not found"
           ls -la usr/share/pixmaps/ || echo "Pixmaps directory not found"
-          ls -la usr/share/sounds/ || echo "Sounds directory not found"
           ls -la usr/share/plymouth/themes/gvos/ || echo "Plymouth theme directory not found"
           ls -la etc/xdg/xfce4/ || echo "XFCE config directory not found"
           
@@ -95,7 +94,6 @@ jobs:
           echo "- GvOS icon in /usr/share/pixmaps/" >> $GITHUB_STEP_SUMMARY
           echo "- Plymouth boot theme in /usr/share/plymouth/themes/gvos/" >> $GITHUB_STEP_SUMMARY
           echo "- XFCE4 panel and desktop configurations" >> $GITHUB_STEP_SUMMARY
-          echo "- Custom sound files in /usr/share/sounds/" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Directory Structure:" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY

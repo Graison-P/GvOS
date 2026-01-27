@@ -15,9 +15,6 @@ This directory contains the GvOS boot animation theme for Plymouth.
 To set this as the default Plymouth theme:
 
 ```bash
-# Copy theme to system Plymouth themes directory
-sudo cp -r /usr/share/plymouth/themes/gvos /usr/share/plymouth/themes/
-
 # Set as default theme
 sudo plymouth-set-default-theme gvos
 
