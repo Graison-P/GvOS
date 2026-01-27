@@ -43,7 +43,7 @@ readonly COLOR_BG_BLUE='\033[44m'
 readonly COLOR_BG_WHITE='\033[47m'
 
 # Default installation settings
-DEFAULT_HOSTNAME="gvos"
+DEFAULT_HOSTNAME="installer"
 DEFAULT_USERNAME="gvos"
 DEFAULT_TIMEZONE="UTC"
 
@@ -61,9 +61,9 @@ declare -A PACKAGE_GROUPS=(
     ["base"]="systemd udev bash coreutils util-linux"
     ["network"]="network-manager iproute2 iputils-ping wireless-tools wpasupplicant"
     ["development"]="build-essential git vim gcc make"
-    ["desktop"]="xorg lightdm lxde firefox-esr"
+    ["desktop"]="xorg lightdm lxde firefox"
     ["server"]="openssh-server apache2 nginx mysql-server"
-    ["multimedia"]="vlc gimp inkscape audacity"
+    ["multimedia"]="vlc gimp inkscape audacity fluidsynth fluid-soundfont-gm"
 )
 
 # Post-installation commands
@@ -76,7 +76,7 @@ declare -a POST_INSTALL_COMMANDS=(
     "apt-get install -y htop neofetch net-tools"
     
     # Text editors
-    "apt-get install -y nano"
+    "apt install -y nano"
     
     # Enable and configure services
     # "systemctl enable ssh"  # Uncomment to enable SSH by default
@@ -105,7 +105,7 @@ ROOT_PASSWORD=""
 TIMEZONE=""
 INSTALL_PACKAGES=()
 DEBIAN_CODENAME=""
-ACTUAL_INSTALL_MODE=false  # Set to true to perform actual installation
+ACTUAL_INSTALL_MODE=true  # Set to true to perform actual installation
 
 ################################################################################
 # UTILITY FUNCTIONS
@@ -399,7 +399,7 @@ step_network_configuration() {
     
     # Check if NetworkManager is available
     if ! command -v nmcli &> /dev/null; then
-        echo -e "${COLOR_YELLOW}NetworkManager not found. Skipping network configuration.${COLOR_RESET}"
+        echo -e "${COLOR_YELLOW}NetworkManager not found. Skipping network config.${COLOR_RESET}"
         sleep 2
         return
     fi
