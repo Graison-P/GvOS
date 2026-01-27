@@ -1,0 +1,31 @@
+#!/bin/bash
+# Hook to configure XFCE desktop environment
+
+set -e
+
+echo "Configuring XFCE desktop environment..."
+
+# Set XFCE as default session
+mkdir -p /etc/lightdm
+cat > /etc/lightdm/lightdm.conf <<EOF
+[Seat:*]
+user-session=xfce
+greeter-session=lightdm-gtk-greeter
+greeter-hide-users=false
+allow-guest=false
+EOF
+
+# Configure LightDM greeter
+mkdir -p /etc/lightdm/lightdm-gtk-greeter.conf.d
+cat > /etc/lightdm/lightdm-gtk-greeter.conf.d/01_gvos.conf <<EOF
+[greeter]
+background=#1e1e1e
+theme-name=Adwaita-dark
+icon-theme-name=Papirus-Dark
+font-name=Sans 10
+xft-antialias=true
+xft-hintstyle=hintslight
+indicators=~host;~spacer;~clock;~spacer;~session;~a11y;~power
+EOF
+
+echo "XFCE configuration complete."

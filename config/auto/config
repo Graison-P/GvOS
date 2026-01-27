@@ -1,0 +1,20 @@
+#!/bin/sh
+# live-build auto configuration for GvOS
+
+lb config noauto \
+    --architectures amd64 \
+    --distribution bookworm \
+    --archive-areas "main contrib non-free non-free-firmware" \
+    --debian-installer live \
+    --debian-installer-gui true \
+    --bootappend-live "boot=live components quiet splash" \
+    --bootappend-install "quiet splash" \
+    --iso-application "GvOS" \
+    --iso-preparer "GvOS Team" \
+    --iso-publisher "GvOS Project" \
+    --iso-volume "GvOS_Live" \
+    --image-name "gvos" \
+    --binary-images iso-hybrid \
+    --memtest none \
+    --win32-loader false \
+    "${@}"

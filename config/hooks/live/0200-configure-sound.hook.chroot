@@ -1,0 +1,20 @@
+#!/bin/bash
+# Hook to configure sound system and theme
+
+set -e
+
+echo "Configuring sound system..."
+
+# Enable PulseAudio for all users
+mkdir -p /etc/pulse/client.conf.d
+cat > /etc/pulse/client.conf.d/00-gvos.conf <<EOF
+# GvOS PulseAudio configuration
+autospawn = yes
+daemon-binary = /usr/bin/pulseaudio
+EOF
+
+# Set GvOS as default sound theme
+mkdir -p /usr/share/sounds/default
+ln -sf /usr/share/sounds/gvos/index.theme /usr/share/sounds/default/index.theme
+
+echo "Sound configuration complete."

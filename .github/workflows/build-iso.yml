@@ -1,0 +1,106 @@
+name: Build GvOS ISO
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-iso:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            debootstrap \
+            squashfs-tools \
+            xorriso \
+            isolinux \
+            syslinux-efi \
+            grub-pc-bin \
+            grub-efi-amd64-bin \
+            mtools \
+            dosfstools
+      
+      - name: Install live-build
+        run: |
+          sudo apt-get install -y live-build
+      
+      - name: Setup build environment
+        run: |
+          # Create build directory
+          mkdir -p build
+          cd build
+          
+          # Initialize live-build configuration
+          lb config \
+            --architectures amd64 \
+            --distribution bookworm \
+            --archive-areas "main contrib non-free non-free-firmware" \
+            --debian-installer live \
+            --bootappend-live "boot=live components quiet splash" \
+            --iso-application "GvOS" \
+            --iso-preparer "GvOS Team" \
+            --iso-publisher "GvOS" \
+            --iso-volume "GvOS" \
+            --image-name "gvos" \
+            --binary-images iso-hybrid
+      
+      - name: Copy customization files
+        run: |
+          # Copy config directory to build
+          cp -r config/* build/config/
+          
+          # Ensure hooks are executable
+          chmod +x build/config/hooks/live/*.hook.chroot 2>/dev/null || true
+      
+      - name: Build ISO
+        run: |
+          cd build
+          sudo lb build
+      
+      - name: Prepare artifacts
+        run: |
+          mkdir -p artifacts
+          mv build/*.iso artifacts/ 2>/dev/null || echo "No ISO files found"
+          mv build/*.packages artifacts/ 2>/dev/null || echo "No package lists found"
+          
+          # Create a build info file
+          cat > artifacts/build-info.txt <<EOF
+          Build Date: $(date)
+          Repository: ${{ github.repository }}
+          Commit: ${{ github.sha }}
+          Branch: ${{ github.ref_name }}
+          EOF
+      
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: gvos-iso
+          path: artifacts/*.iso
+          retention-days: 30
+      
+      - name: Upload build info
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-info
+          path: artifacts/build-info.txt
+          retention-days: 30
+      
+      - name: Create Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/*.iso
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

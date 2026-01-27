@@ -1,0 +1,10 @@
+[Sound Theme]
+Name=GvOS
+Name[en_US]=GvOS
+Comment=GvOS Sound Theme
+Comment[en_US]=GvOS Sound Theme
+Inherits=freedesktop
+Directories=stereo
+
+[stereo]
+OutputProfile=stereo
