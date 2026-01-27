@@ -110,10 +110,18 @@ cleanup_and_exit() {
     local exit_code="${1:-0}"
     
     # Unmount filesystems if they were mounted
-    if [ -n "${INSTALL_ROOT}" ] && mountpoint -q "${INSTALL_ROOT}" 2>/dev/null; then
-        echo ""
-        echo "Unmounting filesystems..."
-        umount -R "${INSTALL_ROOT}" 2>/dev/null || true
+    if [ -n "${INSTALL_ROOT}" ] && [ -d "${INSTALL_ROOT}" ]; then
+        if mountpoint -q "${INSTALL_ROOT}/dev/pts" 2>/dev/null; then
+            echo "Unmounting filesystems..."
+            umount "${INSTALL_ROOT}/dev/pts" 2>/dev/null || true
+            umount "${INSTALL_ROOT}/dev" 2>/dev/null || true
+            umount "${INSTALL_ROOT}/proc" 2>/dev/null || true
+            umount "${INSTALL_ROOT}/sys" 2>/dev/null || true
+            if [ -d "${INSTALL_ROOT}/boot/efi" ]; then
+                umount "${INSTALL_ROOT}/boot/efi" 2>/dev/null || true
+            fi
+            umount "${INSTALL_ROOT}" 2>/dev/null || true
+        fi
     fi
     
     # Restore normal terminal
@@ -343,7 +351,7 @@ detect_debian_release() {
             DEBIAN_CODENAME=$(readlink "/usr/share/debootstrap/scripts/stable" | xargs basename)
             log_message "Detected Debian codename from debootstrap: ${DEBIAN_CODENAME}"
         else
-            # Default to bookworm (Debian 12, current stable as of 2024)
+            # Default to bookworm (Debian 12, stable as of 2023-2025)
             DEBIAN_CODENAME="bookworm"
             log_message "Using default Debian codename: ${DEBIAN_CODENAME}"
         fi
@@ -495,7 +503,11 @@ step_disk_partitioning() {
         fi
         
         # Unmount any existing partitions on the disk
-        umount "${SELECTED_DISK}"* 2>/dev/null || true
+        for partition in "${SELECTED_DISK}"*; do
+            if [ -b "${partition}" ]; then
+                umount "${partition}" 2>/dev/null || true
+            fi
+        done
         
         # Create new partition table
         if [ "${firmware_type}" = "uefi" ]; then
@@ -582,18 +594,25 @@ step_base_installation() {
             # Configure APT sources
             echo ""
             echo "Configuring package repositories..."
+            
+            # Determine if we need non-free-firmware (Debian 12+)
+            local nonfree_firmware=""
+            if [[ "${DEBIAN_CODENAME}" == "bookworm" || "${DEBIAN_CODENAME}" == "trixie" || "${DEBIAN_CODENAME}" == "sid" ]]; then
+                nonfree_firmware=" non-free-firmware"
+            fi
+            
             cat > "${INSTALL_ROOT}/etc/apt/sources.list" <<EOF
 # Debian ${DEBIAN_CODENAME} repositories
-deb ${DEBIAN_MIRROR} ${DEBIAN_CODENAME} main contrib non-free non-free-firmware
-deb-src ${DEBIAN_MIRROR} ${DEBIAN_CODENAME} main contrib non-free non-free-firmware
+deb ${DEBIAN_MIRROR} ${DEBIAN_CODENAME} main contrib non-free${nonfree_firmware}
+deb-src ${DEBIAN_MIRROR} ${DEBIAN_CODENAME} main contrib non-free${nonfree_firmware}
 
 # Security updates
-deb ${DEBIAN_SECURITY_MIRROR} ${DEBIAN_CODENAME}-security main contrib non-free non-free-firmware
-deb-src ${DEBIAN_SECURITY_MIRROR} ${DEBIAN_CODENAME}-security main contrib non-free non-free-firmware
+deb ${DEBIAN_SECURITY_MIRROR} ${DEBIAN_CODENAME}-security main contrib non-free${nonfree_firmware}
+deb-src ${DEBIAN_SECURITY_MIRROR} ${DEBIAN_CODENAME}-security main contrib non-free${nonfree_firmware}
 
 # Updates
-deb ${DEBIAN_MIRROR} ${DEBIAN_CODENAME}-updates main contrib non-free non-free-firmware
-deb-src ${DEBIAN_MIRROR} ${DEBIAN_CODENAME}-updates main contrib non-free non-free-firmware
+deb ${DEBIAN_MIRROR} ${DEBIAN_CODENAME}-updates main contrib non-free${nonfree_firmware}
+deb-src ${DEBIAN_MIRROR} ${DEBIAN_CODENAME}-updates main contrib non-free${nonfree_firmware}
 EOF
             log_message "APT sources configured"
             
@@ -891,9 +910,13 @@ EOF
         
         # Create user account
         echo "Creating user account..."
+        
+        # Ensure sudo package is installed
+        chroot "${INSTALL_ROOT}" apt-get install -y sudo
+        
         chroot "${INSTALL_ROOT}" useradd -m -s /bin/bash "${USERNAME}"
         echo "${USERNAME}:${USER_PASSWORD}" | chroot "${INSTALL_ROOT}" chpasswd
-        chroot "${INSTALL_ROOT}" usermod -aG sudo "${USERNAME}" 2>/dev/null || true
+        chroot "${INSTALL_ROOT}" usermod -aG sudo "${USERNAME}"
         log_message "User created: ${USERNAME}"
         
         # Set root password
@@ -922,16 +945,23 @@ EOF
         echo ""
         echo "Installing bootloader..."
         
-        # Install GRUB
-        chroot "${INSTALL_ROOT}" apt-get install -y grub-pc linux-image-amd64
-        
-        # Install GRUB to disk
+        # Detect firmware type
+        local is_uefi=false
         if [ -d "/sys/firmware/efi" ]; then
-            # UEFI system
-            chroot "${INSTALL_ROOT}" apt-get install -y grub-efi-amd64
+            is_uefi=true
+        fi
+        
+        # Install kernel first
+        chroot "${INSTALL_ROOT}" apt-get install -y linux-image-amd64
+        
+        # Install GRUB based on firmware type
+        if [ "${is_uefi}" = true ]; then
+            # UEFI system - install grub-efi
+            chroot "${INSTALL_ROOT}" apt-get install -y grub-efi-amd64 efibootmgr
             chroot "${INSTALL_ROOT}" grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GvOS
         else
-            # BIOS system
+            # BIOS system - install grub-pc
+            chroot "${INSTALL_ROOT}" apt-get install -y grub-pc
             chroot "${INSTALL_ROOT}" grub-install "${SELECTED_DISK}"
         fi
         
@@ -951,7 +981,16 @@ EOF
         
         # Enable networking
         echo "Configuring network..."
-        chroot "${INSTALL_ROOT}" systemctl enable NetworkManager 2>/dev/null || true
+        
+        # Install NetworkManager if selected in packages
+        if printf '%s\n' "${INSTALL_PACKAGES[@]}" | grep -q "network"; then
+            chroot "${INSTALL_ROOT}" apt-get install -y network-manager
+        fi
+        
+        # Enable NetworkManager if it's installed
+        if chroot "${INSTALL_ROOT}" systemctl list-unit-files | grep -q NetworkManager; then
+            chroot "${INSTALL_ROOT}" systemctl enable NetworkManager 2>/dev/null || true
+        fi
         
         echo ""
         echo -e "${COLOR_GREEN}✓ Installation completed successfully!${COLOR_RESET}"
