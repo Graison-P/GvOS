@@ -1,0 +1,11 @@
+# Placeholder for GvOS error sound
+# This file represents where the error.ogg sound file would be located
+# Replace this placeholder with an actual OGG Vorbis audio file
+# 
+# Suggested properties:
+# - Format: OGG Vorbis
+# - Duration: 1-3 seconds
+# - Sample Rate: 44100 Hz
+# - Channels: Stereo
+# 
+# This sound plays when an error occurs in GvOS

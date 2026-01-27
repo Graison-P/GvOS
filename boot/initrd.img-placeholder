@@ -1,0 +1,3 @@
+# Initial RAM disk placeholder
+# In a real GvOS system, the initrd image would be placed here
+# Example filename: initrd.img-5.10.0-gvos
