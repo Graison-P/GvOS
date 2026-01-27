@@ -97,6 +97,28 @@ See `/usr/share/sounds/README.md` for information on customizing sounds.
    - Channels: Stereo
    - Duration: 1-5 seconds
 
+## Installation
+
+GvOS includes a comprehensive fullscreen installer that provides an Ubuntu Server-like installation experience.
+
+### GvOS Installer
+
+The GvOS Installer is a kernel-based, text-mode installation program featuring:
+
+- **Fullscreen TTY Interface**: Clean, intuitive text-based UI
+- **Network Configuration**: Automatic Wi-Fi network scanning and selection
+- **Disk Partitioning**: Interactive disk management
+- **Package Selection**: Choose from predefined package groups or customize
+- **Custom Commands**: Run sudo commands during installation for advanced customization
+
+#### Running the Installer
+
+```bash
+sudo /usr/bin/gvos-installer
+```
+
+For detailed documentation, see [/usr/bin/INSTALLER-README.md](/usr/bin/INSTALLER-README.md).
+
 ## Development Status
 
 This is the foundational structure for GvOS. Current status:
@@ -106,12 +128,13 @@ This is the foundational structure for GvOS. Current status:
 ✅ Boot directory structure established  
 ✅ Custom sound placeholders included  
 ✅ Documentation provided  
+✅ Fullscreen installer implemented  
 
 ### Next Steps
 
 - Add actual kernel and initrd images
 - Implement custom init system or systemd configuration
-- Add package management integration
+- Complete package management integration
 - Develop custom system services
 - Replace sound placeholders with actual audio files
 - Add desktop environment configuration
