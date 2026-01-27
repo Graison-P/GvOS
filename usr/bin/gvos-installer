@@ -66,6 +66,28 @@ declare -A PACKAGE_GROUPS=(
     ["multimedia"]="vlc gimp inkscape audacity"
 )
 
+# Post-installation commands
+# These commands are automatically executed after Debian is installed and packages are installed
+# Add your custom commands here to install additional packages or configure the system
+# Each command will be executed in the chroot environment
+declare -a POST_INSTALL_COMMANDS=(
+    # System utilities and tools
+    "apt-get install -y curl wget ca-certificates gnupg"
+    "apt-get install -y htop neofetch net-tools"
+    
+    # Text editors
+    "apt-get install -y nano"
+    
+    # Enable and configure services
+    # "systemctl enable ssh"  # Uncomment to enable SSH by default
+    
+    # Add any additional commands here
+    # Examples:
+    # "apt-get install -y your-package"
+    # "systemctl enable your-service"
+    # "echo 'your-config' > /etc/your-config-file"
+)
+
 ################################################################################
 # GLOBAL VARIABLES
 # These are set during the installation process
@@ -939,6 +961,34 @@ EOF
                     chroot "${INSTALL_ROOT}" apt-get install -y ${PACKAGE_GROUPS[$group]} || true
                 fi
             done
+        fi
+        
+        # Execute post-installation commands
+        if [ ${#POST_INSTALL_COMMANDS[@]} -gt 0 ]; then
+            echo ""
+            echo "Running post-installation commands..."
+            log_message "Executing ${#POST_INSTALL_COMMANDS[@]} post-installation commands"
+            
+            for cmd in "${POST_INSTALL_COMMANDS[@]}"; do
+                # Skip empty lines and comments
+                if [[ -z "${cmd}" || "${cmd}" =~ ^[[:space:]]*# ]]; then
+                    continue
+                fi
+                
+                echo -e "${COLOR_CYAN}→${COLOR_RESET} ${cmd}"
+                log_message "Post-install command: ${cmd}"
+                
+                if chroot "${INSTALL_ROOT}" /bin/bash -c "${cmd}"; then
+                    echo -e "${COLOR_GREEN}  ✓ Success${COLOR_RESET}"
+                else
+                    echo -e "${COLOR_YELLOW}  ⚠ Command failed (exit code: $?) - continuing anyway${COLOR_RESET}"
+                    log_message "WARNING: Post-install command failed: ${cmd}"
+                fi
+            done
+            
+            echo ""
+            echo -e "${COLOR_GREEN}✓ Post-installation commands completed${COLOR_RESET}"
+            log_message "Post-installation commands completed"
         fi
         
         # Install and configure bootloader

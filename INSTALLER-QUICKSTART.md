@@ -125,6 +125,27 @@ declare -A PACKAGE_GROUPS=(
 )
 ```
 
+### Add Preset Post-Installation Commands
+
+The installer can automatically run commands after Debian is installed. Edit the `POST_INSTALL_COMMANDS` array in `/usr/bin/gvos-installer`:
+
+```bash
+declare -a POST_INSTALL_COMMANDS=(
+    # Install additional packages
+    "apt-get install -y docker.io"
+    "apt-get install -y nodejs npm"
+    
+    # Enable services
+    "systemctl enable ssh"
+    "systemctl enable docker"
+    
+    # Configure system
+    "echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf"
+)
+```
+
+These commands run automatically in the chroot environment after package installation. Comments and empty lines are skipped.
+
 ## Troubleshooting
 
 ### Cannot Connect to Wi-Fi

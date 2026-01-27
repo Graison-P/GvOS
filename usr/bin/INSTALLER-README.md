@@ -225,6 +225,39 @@ By default, the installer uses the latest Debian stable release. You can customi
 
 The installer automatically detects the codename for the stable release by checking debootstrap scripts.
 
+### Adding Post-Installation Commands
+
+The installer includes a `POST_INSTALL_COMMANDS` array that automatically executes commands after Debian and selected packages are installed. These commands run in the chroot environment of the installed system.
+
+**To add your own commands**, edit the array in `/usr/bin/gvos-installer`:
+
+```bash
+declare -a POST_INSTALL_COMMANDS=(
+    # System utilities and tools
+    "apt-get install -y curl wget ca-certificates"
+    "apt-get install -y htop neofetch"
+    
+    # Enable services
+    "systemctl enable ssh"
+    
+    # Custom configurations
+    "echo 'your-config' > /etc/your-config-file"
+)
+```
+
+**Features:**
+- Commands execute automatically after package installation
+- Run in the installed system's chroot environment
+- Comments (lines starting with `#`) are skipped
+- Empty lines are ignored
+- Failed commands log a warning but don't stop installation
+
+**Common use cases:**
+- Installing additional packages not in package groups
+- Enabling systemd services
+- Creating configuration files
+- Setting up system preferences
+
 ### Adding New Installation Steps
 
 To add a new step:
