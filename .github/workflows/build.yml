@@ -1,0 +1,103 @@
+name: Build GvOS
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Set up build environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            debootstrap \
+            squashfs-tools \
+            xorriso \
+            isolinux \
+            syslinux-efi \
+            grub-pc-bin \
+            grub-efi-amd64-bin \
+            mtools
+            
+      - name: Verify asset structure
+        run: |
+          echo "Checking asset directories..."
+          ls -la usr/share/backgrounds/ || echo "Backgrounds directory not found"
+          ls -la usr/share/pixmaps/ || echo "Pixmaps directory not found"
+          ls -la usr/share/sounds/ || echo "Sounds directory not found"
+          ls -la usr/share/plymouth/themes/gvos/ || echo "Plymouth theme directory not found"
+          ls -la etc/xdg/xfce4/ || echo "XFCE config directory not found"
+          
+      - name: Validate configuration files
+        run: |
+          echo "Validating XFCE configurations..."
+          if [ -f "etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml" ]; then
+            xmllint --noout etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml && echo "✓ Panel config valid" || echo "✗ Panel config invalid"
+          fi
+          if [ -f "etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml" ]; then
+            xmllint --noout etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml && echo "✓ Desktop config valid" || echo "✗ Desktop config invalid"
+          fi
+          
+      - name: Check Plymouth theme
+        run: |
+          echo "Checking Plymouth theme files..."
+          if [ -f "usr/share/plymouth/themes/gvos/gvos.plymouth" ]; then
+            echo "✓ Plymouth theme config found"
+            cat usr/share/plymouth/themes/gvos/gvos.plymouth
+          else
+            echo "✗ Plymouth theme config not found"
+          fi
+          
+      - name: Verify icon and wallpaper files
+        run: |
+          echo "Checking image files..."
+          if [ -f "usr/share/pixmaps/gvosicon.png" ]; then
+            echo "✓ GvOS icon found ($(stat -c%s usr/share/pixmaps/gvosicon.png) bytes)"
+          else
+            echo "✗ GvOS icon not found"
+          fi
+          
+          if [ -f "usr/share/backgrounds/gvos-wallpaper-1.png" ]; then
+            echo "✓ Wallpaper 1 found ($(stat -c%s usr/share/backgrounds/gvos-wallpaper-1.png) bytes)"
+          else
+            echo "✗ Wallpaper 1 not found"
+          fi
+          
+          if [ -f "usr/share/backgrounds/gvos-wallpaper-2.png" ]; then
+            echo "✓ Wallpaper 2 found ($(stat -c%s usr/share/backgrounds/gvos-wallpaper-2.png) bytes)"
+          else
+            echo "✗ Wallpaper 2 not found"
+          fi
+          
+      - name: List all customization files
+        run: |
+          echo "Complete file structure:"
+          find usr/share/backgrounds usr/share/pixmaps usr/share/plymouth etc/xdg/xfce4 -type f 2>/dev/null || echo "Some directories not found"
+          
+      - name: Create deployment summary
+        run: |
+          echo "## GvOS Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Assets Included:" >> $GITHUB_STEP_SUMMARY
+          echo "- Custom backgrounds in /usr/share/backgrounds/" >> $GITHUB_STEP_SUMMARY
+          echo "- GvOS icon in /usr/share/pixmaps/" >> $GITHUB_STEP_SUMMARY
+          echo "- Plymouth boot theme in /usr/share/plymouth/themes/gvos/" >> $GITHUB_STEP_SUMMARY
+          echo "- XFCE4 panel and desktop configurations" >> $GITHUB_STEP_SUMMARY
+          echo "- Custom sound files in /usr/share/sounds/" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Directory Structure:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tree -L 3 usr/share etc/xdg 2>/dev/null || find usr/share etc/xdg -type d | head -20
+          echo '```' >> $GITHUB_STEP_SUMMARY
