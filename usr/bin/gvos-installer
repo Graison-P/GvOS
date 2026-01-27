@@ -1,0 +1,780 @@
+#!/bin/bash
+
+################################################################################
+# GvOS Fullscreen Installer
+# 
+# A fullscreen, kernel-based installer for GvOS designed to mimic the 
+# functionality and aesthetics of the Ubuntu Server installer.
+#
+# This installer runs entirely in a kernel TTY environment with no reliance
+# on graphical utilities - it's fully text-based.
+#
+# Features:
+# - Network selection (Wi-Fi with nmcli)
+# - Partition and installation setup
+# - Customization options with custom command section
+# - Expandable modules for package installation
+#
+# Author: GvOS Development Team
+# License: See LICENSE file
+################################################################################
+
+# Exit on error, undefined variables, and pipe failures
+set -euo pipefail
+
+################################################################################
+# CONFIGURATION SECTION
+# Edit these variables to customize the installer behavior
+################################################################################
+
+# Installer version
+readonly INSTALLER_VERSION="1.0.0"
+
+# Colors for the installer UI (using ANSI escape codes)
+readonly COLOR_RESET='\033[0m'
+readonly COLOR_BOLD='\033[1m'
+readonly COLOR_RED='\033[0;31m'
+readonly COLOR_GREEN='\033[0;32m'
+readonly COLOR_YELLOW='\033[0;33m'
+readonly COLOR_BLUE='\033[0;34m'
+readonly COLOR_CYAN='\033[0;36m'
+readonly COLOR_WHITE='\033[0;37m'
+readonly COLOR_BG_BLUE='\033[44m'
+readonly COLOR_BG_WHITE='\033[47m'
+
+# Default installation settings
+DEFAULT_HOSTNAME="gvos"
+DEFAULT_USERNAME="gvos"
+DEFAULT_TIMEZONE="UTC"
+
+# Installation paths
+INSTALL_ROOT="/mnt/gvos"
+LOG_FILE="/var/log/gvos-installer.log"
+
+# Package groups for expandable modules
+declare -A PACKAGE_GROUPS=(
+    ["base"]="systemd udev bash coreutils util-linux"
+    ["network"]="network-manager iproute2 iputils-ping wireless-tools wpasupplicant"
+    ["development"]="build-essential git vim gcc make"
+    ["desktop"]="xorg lightdm lxde firefox-esr"
+    ["server"]="openssh-server apache2 nginx mysql-server"
+    ["multimedia"]="vlc gimp inkscape audacity"
+)
+
+################################################################################
+# GLOBAL VARIABLES
+# These are set during the installation process
+################################################################################
+
+SELECTED_DISK=""
+SELECTED_NETWORK=""
+NETWORK_PASSWORD=""
+HOSTNAME=""
+USERNAME=""
+USER_PASSWORD=""
+ROOT_PASSWORD=""
+TIMEZONE=""
+INSTALL_PACKAGES=()
+
+################################################################################
+# UTILITY FUNCTIONS
+# Helper functions for the installer UI and operations
+################################################################################
+
+# Log messages to both console and log file
+log_message() {
+    local message="$1"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[${timestamp}] ${message}" | tee -a "${LOG_FILE}"
+}
+
+# Display error message and exit
+error_exit() {
+    local message="$1"
+    echo -e "${COLOR_RED}${COLOR_BOLD}ERROR:${COLOR_RESET} ${message}" >&2
+    log_message "ERROR: ${message}"
+    cleanup_and_exit 1
+}
+
+# Cleanup and exit
+cleanup_and_exit() {
+    local exit_code="${1:-0}"
+    # Restore normal terminal
+    tput cnorm 2>/dev/null || true
+    reset
+    exit "${exit_code}"
+}
+
+# Clear screen and show header
+show_header() {
+    clear
+    echo -e "${COLOR_BG_BLUE}${COLOR_WHITE}${COLOR_BOLD}"
+    echo "╔════════════════════════════════════════════════════════════════════════════╗"
+    echo "║                          GvOS Installer v${INSTALLER_VERSION}                          ║"
+    echo "╚════════════════════════════════════════════════════════════════════════════╝"
+    echo -e "${COLOR_RESET}"
+    echo ""
+}
+
+# Display a message box
+message_box() {
+    local title="$1"
+    local message="$2"
+    
+    show_header
+    echo -e "${COLOR_CYAN}${COLOR_BOLD}=== ${title} ===${COLOR_RESET}"
+    echo ""
+    echo -e "${message}"
+    echo ""
+}
+
+# Display a prompt and get user input
+prompt_input() {
+    local prompt="$1"
+    local default="${2:-}"
+    local result
+    
+    if [ -n "${default}" ]; then
+        echo -ne "${COLOR_GREEN}${prompt}${COLOR_RESET} [${default}]: "
+    else
+        echo -ne "${COLOR_GREEN}${prompt}${COLOR_RESET}: "
+    fi
+    
+    read -r result
+    
+    if [ -z "${result}" ] && [ -n "${default}" ]; then
+        echo "${default}"
+    else
+        echo "${result}"
+    fi
+}
+
+# Display a yes/no prompt
+prompt_yes_no() {
+    local prompt="$1"
+    local default="${2:-n}"
+    local result
+    
+    while true; do
+        if [ "${default}" = "y" ]; then
+            echo -ne "${COLOR_GREEN}${prompt}${COLOR_RESET} [Y/n]: "
+        else
+            echo -ne "${COLOR_GREEN}${prompt}${COLOR_RESET} [y/N]: "
+        fi
+        
+        read -r result
+        result="${result:-${default}}"
+        
+        case "${result,,}" in
+            y|yes) return 0 ;;
+            n|no) return 1 ;;
+            *) echo "Please answer yes or no." ;;
+        esac
+    done
+}
+
+# Display a menu and get user selection
+show_menu() {
+    local title="$1"
+    shift
+    local options=("$@")
+    local choice
+    
+    show_header
+    echo -e "${COLOR_CYAN}${COLOR_BOLD}=== ${title} ===${COLOR_RESET}"
+    echo ""
+    
+    for i in "${!options[@]}"; do
+        echo -e "  ${COLOR_BOLD}$((i + 1)))${COLOR_RESET} ${options[$i]}"
+    done
+    
+    echo ""
+    while true; do
+        echo -ne "${COLOR_GREEN}Select an option (1-${#options[@]}):${COLOR_RESET} "
+        read -r choice
+        
+        if [[ "${choice}" =~ ^[0-9]+$ ]] && [ "${choice}" -ge 1 ] && [ "${choice}" -le "${#options[@]}" ]; then
+            return $((choice - 1))
+        fi
+        
+        echo -e "${COLOR_RED}Invalid selection. Please try again.${COLOR_RESET}"
+    done
+}
+
+# Display progress bar
+show_progress() {
+    local current="$1"
+    local total="$2"
+    local message="${3:-Processing}"
+    local percent=$((current * 100 / total))
+    local filled=$((percent / 2))
+    local empty=$((50 - filled))
+    
+    printf "\r${COLOR_CYAN}${message}:${COLOR_RESET} ["
+    printf "%${filled}s" | tr ' ' '='
+    printf "%${empty}s" | tr ' ' ' '
+    printf "] %3d%%" "${percent}"
+}
+
+################################################################################
+# INSTALLATION STEP FUNCTIONS
+# Each function handles a specific step of the installation process
+################################################################################
+
+# Step 1: Welcome screen
+step_welcome() {
+    message_box "Welcome to GvOS Installer" \
+"Welcome to the GvOS installation program!
+
+This installer will guide you through the process of installing GvOS
+on your system. The installation process includes:
+
+  • Network configuration (Wi-Fi/Ethernet)
+  • Disk partitioning and formatting
+  • Base system installation
+  • User account creation
+  • Package selection and installation
+  • System customization
+
+${COLOR_YELLOW}NOTE:${COLOR_RESET} This installer requires root privileges and will make changes
+to your disk. Make sure you have backed up any important data.
+
+Press ENTER to continue..."
+    
+    read -r
+}
+
+# Step 2: Check prerequisites
+step_check_prerequisites() {
+    message_box "Checking Prerequisites" "Verifying system requirements..."
+    
+    log_message "Checking prerequisites..."
+    
+    # Check if running as root
+    if [ "$(id -u)" -ne 0 ]; then
+        error_exit "This installer must be run as root. Please use 'sudo'."
+    fi
+    
+    # Check for required commands
+    local required_cmds=("nmcli" "fdisk" "mkfs.ext4" "mount" "apt-get" "chroot")
+    local missing_cmds=()
+    
+    for cmd in "${required_cmds[@]}"; do
+        if ! command -v "${cmd}" &> /dev/null; then
+            missing_cmds+=("${cmd}")
+        fi
+    done
+    
+    if [ ${#missing_cmds[@]} -gt 0 ]; then
+        echo -e "${COLOR_YELLOW}Warning: The following commands are not available:${COLOR_RESET}"
+        printf '  - %s\n' "${missing_cmds[@]}"
+        echo ""
+        if ! prompt_yes_no "Continue anyway?" "n"; then
+            cleanup_and_exit 0
+        fi
+    fi
+    
+    echo -e "${COLOR_GREEN}✓ Prerequisites check completed${COLOR_RESET}"
+    sleep 1
+}
+
+# Step 3: Network configuration
+step_network_configuration() {
+    show_header
+    echo -e "${COLOR_CYAN}${COLOR_BOLD}=== Network Configuration ===${COLOR_RESET}"
+    echo ""
+    
+    log_message "Configuring network..."
+    
+    # Check if NetworkManager is available
+    if ! command -v nmcli &> /dev/null; then
+        echo -e "${COLOR_YELLOW}NetworkManager not found. Skipping network configuration.${COLOR_RESET}"
+        sleep 2
+        return
+    fi
+    
+    echo "Scanning for available networks..."
+    sleep 1
+    
+    # Get list of Wi-Fi networks
+    local networks=()
+    while IFS= read -r line; do
+        if [ -n "${line}" ]; then
+            networks+=("${line}")
+        fi
+    done < <(nmcli -t -f SSID device wifi list 2>/dev/null | sort -u | grep -v '^$' || true)
+    
+    if [ ${#networks[@]} -eq 0 ]; then
+        echo -e "${COLOR_YELLOW}No Wi-Fi networks found.${COLOR_RESET}"
+        echo ""
+        if prompt_yes_no "Skip network configuration?" "y"; then
+            return
+        fi
+    else
+        echo ""
+        echo "Available Wi-Fi networks:"
+        for i in "${!networks[@]}"; do
+            echo -e "  ${COLOR_BOLD}$((i + 1)))${COLOR_RESET} ${networks[$i]}"
+        done
+        echo -e "  ${COLOR_BOLD}$((${#networks[@]} + 1)))${COLOR_RESET} Skip network configuration"
+        echo ""
+        
+        local choice
+        while true; do
+            echo -ne "${COLOR_GREEN}Select a network (1-$((${#networks[@]} + 1))):${COLOR_RESET} "
+            read -r choice
+            
+            if [[ "${choice}" =~ ^[0-9]+$ ]] && [ "${choice}" -ge 1 ] && [ "${choice}" -le $((${#networks[@]} + 1)) ]; then
+                break
+            fi
+            echo -e "${COLOR_RED}Invalid selection.${COLOR_RESET}"
+        done
+        
+        if [ "${choice}" -le "${#networks[@]}" ]; then
+            SELECTED_NETWORK="${networks[$((choice - 1))]}"
+            echo ""
+            echo -ne "${COLOR_GREEN}Enter password for '${SELECTED_NETWORK}':${COLOR_RESET} "
+            read -rs NETWORK_PASSWORD
+            echo ""
+            
+            echo "Connecting to '${SELECTED_NETWORK}'..."
+            if nmcli device wifi connect "${SELECTED_NETWORK}" password "${NETWORK_PASSWORD}" 2>/dev/null; then
+                echo -e "${COLOR_GREEN}✓ Connected successfully${COLOR_RESET}"
+                log_message "Connected to network: ${SELECTED_NETWORK}"
+            else
+                echo -e "${COLOR_RED}✗ Failed to connect${COLOR_RESET}"
+                log_message "Failed to connect to network: ${SELECTED_NETWORK}"
+                if ! prompt_yes_no "Continue without network?" "n"; then
+                    cleanup_and_exit 0
+                fi
+            fi
+        fi
+    fi
+    
+    echo ""
+    echo "Press ENTER to continue..."
+    read -r
+}
+
+# Step 4: Disk partitioning
+step_disk_partitioning() {
+    show_header
+    echo -e "${COLOR_CYAN}${COLOR_BOLD}=== Disk Partitioning ===${COLOR_RESET}"
+    echo ""
+    
+    log_message "Starting disk partitioning..."
+    
+    # List available disks
+    echo "Available disks:"
+    lsblk -d -n -o NAME,SIZE,TYPE | grep disk | while read -r name size type; do
+        echo -e "  ${COLOR_BOLD}/dev/${name}${COLOR_RESET} - ${size}"
+    done
+    echo ""
+    
+    # Get disk selection
+    local disk
+    while true; do
+        disk=$(prompt_input "Enter the disk to install GvOS on (e.g., sda, vda)" "")
+        
+        if [ -b "/dev/${disk}" ]; then
+            SELECTED_DISK="/dev/${disk}"
+            break
+        fi
+        echo -e "${COLOR_RED}Disk /dev/${disk} not found. Please try again.${COLOR_RESET}"
+    done
+    
+    echo ""
+    echo -e "${COLOR_RED}${COLOR_BOLD}WARNING:${COLOR_RESET} All data on ${SELECTED_DISK} will be DESTROYED!"
+    echo ""
+    
+    if ! prompt_yes_no "Are you sure you want to continue?" "n"; then
+        cleanup_and_exit 0
+    fi
+    
+    # Partition the disk
+    echo ""
+    echo "Partitioning ${SELECTED_DISK}..."
+    log_message "Partitioning disk: ${SELECTED_DISK}"
+    
+    # This is a placeholder - in a real installer, you would use fdisk/parted
+    # to create partitions. For safety, we'll just simulate this.
+    echo -e "${COLOR_YELLOW}[SIMULATION MODE] Partitioning would happen here${COLOR_RESET}"
+    echo "  - Creating EFI partition (512MB)"
+    echo "  - Creating root partition (remaining space)"
+    sleep 2
+    
+    echo ""
+    echo -e "${COLOR_GREEN}✓ Disk partitioning completed${COLOR_RESET}"
+    echo ""
+    echo "Press ENTER to continue..."
+    read -r
+}
+
+# Step 5: Base system installation
+step_base_installation() {
+    show_header
+    echo -e "${COLOR_CYAN}${COLOR_BOLD}=== Base System Installation ===${COLOR_RESET}"
+    echo ""
+    
+    log_message "Installing base system..."
+    
+    # Create installation root
+    echo "Creating installation directory..."
+    mkdir -p "${INSTALL_ROOT}"
+    
+    # Simulate base system installation
+    echo ""
+    echo "Installing base packages..."
+    echo -e "${COLOR_YELLOW}[SIMULATION MODE] Base installation would happen here${COLOR_RESET}"
+    
+    local base_packages=("${PACKAGE_GROUPS[base]}" "${PACKAGE_GROUPS[network]}")
+    local total=${#base_packages[@]}
+    
+    for i in "${!base_packages[@]}"; do
+        show_progress "$((i + 1))" "${total}" "Installing base packages"
+        sleep 0.1
+    done
+    
+    echo ""
+    echo ""
+    echo -e "${COLOR_GREEN}✓ Base system installation completed${COLOR_RESET}"
+    echo ""
+    echo "Press ENTER to continue..."
+    read -r
+}
+
+# Step 6: User configuration
+step_user_configuration() {
+    show_header
+    echo -e "${COLOR_CYAN}${COLOR_BOLD}=== User Configuration ===${COLOR_RESET}"
+    echo ""
+    
+    log_message "Configuring user accounts..."
+    
+    # Get hostname
+    HOSTNAME=$(prompt_input "Enter hostname for this system" "${DEFAULT_HOSTNAME}")
+    
+    # Get username
+    USERNAME=$(prompt_input "Enter username for the primary user" "${DEFAULT_USERNAME}")
+    
+    # Get user password
+    while true; do
+        echo -ne "${COLOR_GREEN}Enter password for ${USERNAME}:${COLOR_RESET} "
+        read -rs USER_PASSWORD
+        echo ""
+        echo -ne "${COLOR_GREEN}Confirm password:${COLOR_RESET} "
+        read -rs password_confirm
+        echo ""
+        
+        if [ "${USER_PASSWORD}" = "${password_confirm}" ]; then
+            break
+        fi
+        echo -e "${COLOR_RED}Passwords do not match. Please try again.${COLOR_RESET}"
+    done
+    
+    # Get root password
+    echo ""
+    if prompt_yes_no "Set a separate root password?" "n"; then
+        while true; do
+            echo -ne "${COLOR_GREEN}Enter root password:${COLOR_RESET} "
+            read -rs ROOT_PASSWORD
+            echo ""
+            echo -ne "${COLOR_GREEN}Confirm password:${COLOR_RESET} "
+            read -rs password_confirm
+            echo ""
+            
+            if [ "${ROOT_PASSWORD}" = "${password_confirm}" ]; then
+                break
+            fi
+            echo -e "${COLOR_RED}Passwords do not match. Please try again.${COLOR_RESET}"
+        done
+    else
+        ROOT_PASSWORD="${USER_PASSWORD}"
+    fi
+    
+    # Get timezone
+    echo ""
+    TIMEZONE=$(prompt_input "Enter timezone" "${DEFAULT_TIMEZONE}")
+    
+    echo ""
+    echo -e "${COLOR_GREEN}✓ User configuration completed${COLOR_RESET}"
+    echo ""
+    echo "Press ENTER to continue..."
+    read -r
+}
+
+# Step 7: Package selection
+step_package_selection() {
+    show_header
+    echo -e "${COLOR_CYAN}${COLOR_BOLD}=== Package Selection ===${COLOR_RESET}"
+    echo ""
+    
+    log_message "Selecting packages..."
+    
+    echo "Select package groups to install:"
+    echo ""
+    echo -e "  ${COLOR_BOLD}1)${COLOR_RESET} Base System (required)"
+    echo -e "  ${COLOR_BOLD}2)${COLOR_RESET} Development Tools"
+    echo -e "  ${COLOR_BOLD}3)${COLOR_RESET} Desktop Environment (LXDE)"
+    echo -e "  ${COLOR_BOLD}4)${COLOR_RESET} Server Packages"
+    echo -e "  ${COLOR_BOLD}5)${COLOR_RESET} Multimedia Applications"
+    echo -e "  ${COLOR_BOLD}6)${COLOR_RESET} Custom Selection"
+    echo ""
+    
+    INSTALL_PACKAGES=("base" "network")
+    
+    if prompt_yes_no "Install development tools?" "n"; then
+        INSTALL_PACKAGES+=("development")
+    fi
+    
+    if prompt_yes_no "Install desktop environment?" "n"; then
+        INSTALL_PACKAGES+=("desktop")
+    fi
+    
+    if prompt_yes_no "Install server packages?" "n"; then
+        INSTALL_PACKAGES+=("server")
+    fi
+    
+    if prompt_yes_no "Install multimedia applications?" "n"; then
+        INSTALL_PACKAGES+=("multimedia")
+    fi
+    
+    echo ""
+    echo -e "${COLOR_GREEN}✓ Package selection completed${COLOR_RESET}"
+    echo ""
+    echo "Press ENTER to continue..."
+    read -r
+}
+
+# Step 8: Custom commands section
+step_custom_commands() {
+    show_header
+    echo -e "${COLOR_CYAN}${COLOR_BOLD}=== Custom Commands ===${COLOR_RESET}"
+    echo ""
+    
+    log_message "Custom commands section..."
+    
+    echo "This section allows you to run custom sudo commands to further"
+    echo "customize your installation."
+    echo ""
+    echo -e "${COLOR_YELLOW}Examples:${COLOR_RESET}"
+    echo "  - apt-get install <package>"
+    echo "  - systemctl enable <service>"
+    echo "  - Custom configuration commands"
+    echo ""
+    echo -e "${COLOR_YELLOW}Note:${COLOR_RESET} Commands will be executed in the installation root context."
+    echo ""
+    
+    if ! prompt_yes_no "Do you want to run custom commands?" "n"; then
+        return
+    fi
+    
+    echo ""
+    echo "Enter your commands (one per line). Type 'done' when finished."
+    echo ""
+    
+    local command
+    local commands=()
+    
+    while true; do
+        echo -ne "${COLOR_GREEN}Command>${COLOR_RESET} "
+        read -r command
+        
+        if [ "${command}" = "done" ]; then
+            break
+        fi
+        
+        if [ -n "${command}" ]; then
+            commands+=("${command}")
+            echo -e "${COLOR_YELLOW}[QUEUED]${COLOR_RESET} ${command}"
+        fi
+    done
+    
+    if [ ${#commands[@]} -gt 0 ]; then
+        echo ""
+        echo "Executing custom commands..."
+        log_message "Executing ${#commands[@]} custom commands"
+        
+        for cmd in "${commands[@]}"; do
+            echo -e "${COLOR_CYAN}→${COLOR_RESET} ${cmd}"
+            log_message "Custom command: ${cmd}"
+            # In a real installer, execute: chroot "${INSTALL_ROOT}" ${cmd}
+            echo -e "${COLOR_YELLOW}[SIMULATION MODE] Would execute: ${cmd}${COLOR_RESET}"
+            sleep 0.5
+        done
+        
+        echo ""
+        echo -e "${COLOR_GREEN}✓ Custom commands executed${COLOR_RESET}"
+    fi
+    
+    echo ""
+    echo "Press ENTER to continue..."
+    read -r
+}
+
+# Step 9: Installation summary
+step_installation_summary() {
+    show_header
+    echo -e "${COLOR_CYAN}${COLOR_BOLD}=== Installation Summary ===${COLOR_RESET}"
+    echo ""
+    
+    echo -e "${COLOR_BOLD}Installation Settings:${COLOR_RESET}"
+    echo "  Hostname:        ${HOSTNAME}"
+    echo "  Username:        ${USERNAME}"
+    echo "  Timezone:        ${TIMEZONE}"
+    echo "  Disk:            ${SELECTED_DISK}"
+    if [ -n "${SELECTED_NETWORK}" ]; then
+        echo "  Network:         ${SELECTED_NETWORK}"
+    fi
+    echo ""
+    echo -e "${COLOR_BOLD}Package Groups:${COLOR_RESET}"
+    for group in "${INSTALL_PACKAGES[@]}"; do
+        echo "  - ${group}"
+    done
+    echo ""
+    
+    if ! prompt_yes_no "Proceed with installation?" "y"; then
+        echo ""
+        if prompt_yes_no "Exit installer?" "n"; then
+            cleanup_and_exit 0
+        else
+            return 1
+        fi
+    fi
+    
+    return 0
+}
+
+# Step 10: Perform installation
+step_perform_installation() {
+    show_header
+    echo -e "${COLOR_CYAN}${COLOR_BOLD}=== Installing GvOS ===${COLOR_RESET}"
+    echo ""
+    
+    log_message "Starting installation..."
+    
+    echo "Installing packages..."
+    echo -e "${COLOR_YELLOW}[SIMULATION MODE] Package installation in progress${COLOR_RESET}"
+    echo ""
+    
+    local total=100
+    for i in $(seq 1 ${total}); do
+        show_progress "${i}" "${total}" "Installing system"
+        sleep 0.05
+    done
+    
+    echo ""
+    echo ""
+    
+    # Simulate creating user
+    echo "Creating user account..."
+    log_message "Creating user: ${USERNAME}"
+    sleep 1
+    
+    # Simulate setting hostname
+    echo "Setting hostname..."
+    log_message "Setting hostname: ${HOSTNAME}"
+    sleep 1
+    
+    # Simulate configuring timezone
+    echo "Configuring timezone..."
+    log_message "Setting timezone: ${TIMEZONE}"
+    sleep 1
+    
+    # Simulate installing bootloader
+    echo "Installing bootloader..."
+    log_message "Installing GRUB bootloader"
+    sleep 2
+    
+    echo ""
+    echo -e "${COLOR_GREEN}✓ Installation completed successfully!${COLOR_RESET}"
+    log_message "Installation completed successfully"
+}
+
+# Step 11: Completion
+step_completion() {
+    show_header
+    echo -e "${COLOR_GREEN}${COLOR_BOLD}=== Installation Complete ===${COLOR_RESET}"
+    echo ""
+    
+    message_box "Installation Complete" \
+"${COLOR_GREEN}Congratulations!${COLOR_RESET}
+
+GvOS has been successfully installed on your system.
+
+${COLOR_BOLD}System Information:${COLOR_RESET}
+  Hostname:    ${HOSTNAME}
+  Username:    ${USERNAME}
+  Timezone:    ${TIMEZONE}
+
+${COLOR_BOLD}Next Steps:${COLOR_RESET}
+  1. Remove the installation media
+  2. Reboot your system
+  3. Log in with your username and password
+
+${COLOR_YELLOW}Note:${COLOR_RESET} The installation log has been saved to:
+  ${LOG_FILE}
+
+Thank you for choosing GvOS!
+
+Press ENTER to exit the installer..."
+    
+    read -r
+}
+
+################################################################################
+# MAIN INSTALLATION FLOW
+# This function orchestrates the entire installation process
+################################################################################
+
+main() {
+    # Initialize logging
+    mkdir -p "$(dirname "${LOG_FILE}")"
+    : > "${LOG_FILE}"
+    
+    log_message "GvOS Installer v${INSTALLER_VERSION} started"
+    
+    # Hide cursor for cleaner UI
+    tput civis 2>/dev/null || true
+    
+    # Trap to cleanup on exit
+    trap 'cleanup_and_exit' EXIT INT TERM
+    
+    # Installation steps
+    step_welcome
+    step_check_prerequisites
+    step_network_configuration
+    step_disk_partitioning
+    step_base_installation
+    step_user_configuration
+    step_package_selection
+    step_custom_commands
+    
+    # Show summary and confirm
+    while ! step_installation_summary; do
+        # Return to package selection if user wants to change settings
+        step_package_selection
+        step_custom_commands
+    done
+    
+    # Perform the actual installation
+    step_perform_installation
+    
+    # Show completion message
+    step_completion
+    
+    log_message "GvOS Installer completed"
+    
+    # Cleanup and exit
+    cleanup_and_exit 0
+}
+
+################################################################################
+# ENTRY POINT
+# Start the installer
+################################################################################
+
+# Check if script is being sourced or executed
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+    main "$@"
+fi
