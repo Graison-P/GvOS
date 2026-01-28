@@ -16,14 +16,13 @@ RESOLUTION=$(xrandr | grep '\*' | awk '{print $1}' | head -1)
 WIDTH=$(echo $RESOLUTION | cut -d'x' -f1)
 HEIGHT=$(echo $RESOLUTION | cut -d'x' -f2)
 
-# Calculate aspect ratio
+# Calculate aspect ratio without bc (using integer arithmetic)
 if [ -n "$WIDTH" ] && [ -n "$HEIGHT" ] && [ "$HEIGHT" -gt 0 ]; then
-    # Check if it's 4:3 ratio (within tolerance)
-    # 4:3 = 1.333, allow 1.3-1.4 range
-    RATIO=$(echo "scale=2; $WIDTH / $HEIGHT" | bc)
-    IS_4BY3=$(echo "$RATIO >= 1.25 && $RATIO <= 1.45" | bc)
+    # Check if it's 4:3 ratio using integer math
+    # Multiply by 100 for precision: 4:3 = 133, allow 125-145 range
+    RATIO_X100=$((WIDTH * 100 / HEIGHT))
     
-    if [ "$IS_4BY3" -eq 1 ]; then
+    if [ "$RATIO_X100" -ge 125 ] && [ "$RATIO_X100" -le 145 ]; then
         WALLPAPER="/usr/share/backgrounds/gvos/wallpaper4by3.png"
     else
         WALLPAPER="/usr/share/backgrounds/gvos/wallpaper.png"
