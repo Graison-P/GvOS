@@ -49,7 +49,8 @@ jobs:
             --mode debian \
             --system live \
             --debian-installer false \
-            --security false
+            --security false \
+            --apt-indices false
 
           # Add security and updates repositories for Debian Bookworm
           # Debian 12 (Bookworm) uses 'bookworm-security' instead of 'bookworm/updates'
