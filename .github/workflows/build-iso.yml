@@ -47,7 +47,15 @@ jobs:
             --binary-images iso-hybrid \
             --mode debian \
             --system live \
-            --debian-installer false
+            --debian-installer false \
+            --security true \
+            --updates true
+
+          # Fix security repository for Debian Bookworm
+          # Debian 12 (Bookworm) uses 'bookworm-security' instead of 'bookworm/updates'
+          mkdir -p config/archives
+          echo "deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware" > config/archives/security.list.chroot
+          echo "deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware" > config/archives/security.list.binary
 
       - name: Copy customization files
         run: |
