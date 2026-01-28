@@ -145,9 +145,25 @@ This is the foundational structure for GvOS. Current status:
 ✅ Filesystem hierarchy created  
 ✅ Configuration file placeholders added  
 ✅ Boot directory structure established  
-✅ Custom sound placeholders included  
+✅ Custom sound system with WAV files  
 ✅ Documentation provided  
 ✅ Fullscreen installer implemented  
+✅ **Windows 11-like XFCE customizations**  
+✅ **Dynamic wallpaper based on aspect ratio**  
+✅ **Plymouth boot animation with GvOS branding**  
+✅ **GitHub Actions CI/CD for ISO building**  
+
+### Recent Enhancements
+
+GvOS now includes a modern, polished user experience:
+
+- **Windows 11-Inspired Theme**: Dark theme with rounded, centered taskbar
+- **Smart Wallpapers**: Automatically selects wallpaper based on screen aspect ratio
+- **Boot Animation**: Custom Plymouth theme with animated GvOS icon
+- **System Sounds**: Complete set of event sounds for startup, errors, notifications, etc.
+- **Automated Builds**: GitHub Actions workflow for building customized ISO images
+
+See [ENHANCEMENTS.md](ENHANCEMENTS.md) for detailed information about recent improvements.
 
 ### Next Steps
 
@@ -155,8 +171,8 @@ This is the foundational structure for GvOS. Current status:
 - Implement custom init system or systemd configuration
 - Complete package management integration
 - Develop custom system services
-- Replace sound placeholders with actual audio files
-- Add desktop environment configuration
+- Additional theme variants
+- Enhanced Plymouth animations
 
 ## Contributing
 
