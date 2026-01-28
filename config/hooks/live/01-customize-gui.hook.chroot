@@ -2,7 +2,7 @@
 set -e
 # Apply XFCE customizations
 
-# Set default wallpaper for XFCE
+# Ensure backgrounds directory exists
 test -d /usr/share/backgrounds || mkdir -p /usr/share/backgrounds
 
 # Configure default XFCE desktop settings including wallpaper
