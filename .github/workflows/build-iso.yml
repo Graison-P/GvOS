@@ -40,6 +40,7 @@ jobs:
           cd build
 
           # Initialize live-build configuration
+          # Note: --security false to prevent old-style security repo from being added
           lb config \
             --architectures amd64 \
             --distribution bookworm \
@@ -48,17 +49,19 @@ jobs:
             --mode debian \
             --system live \
             --debian-installer false \
-            --security true
+            --security false
 
-          # Fix security repository for Debian Bookworm
+          # Add security and updates repositories for Debian Bookworm
           # Debian 12 (Bookworm) uses 'bookworm-security' instead of 'bookworm/updates'
           mkdir -p config/archives
+          
+          # Security repository
           echo "deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware" > config/archives/security.list.chroot
           echo "deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware" > config/archives/security.list.binary
           
-          # Add updates repository
-          echo "deb http://ftp.debian.org/debian bookworm-updates main contrib non-free non-free-firmware" > config/archives/updates.list.chroot
-          echo "deb http://ftp.debian.org/debian bookworm-updates main contrib non-free non-free-firmware" > config/archives/updates.list.binary
+          # Updates repository  
+          echo "deb http://ftp.debian.org/debian bookworm-updates main contrib non-free non-free-firmware" > config/archives/bookworm-updates.list.chroot
+          echo "deb http://ftp.debian.org/debian bookworm-updates main contrib non-free non-free-firmware" > config/archives/bookworm-updates.list.binary
 
       - name: Copy customization files
         run: |
