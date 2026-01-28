@@ -1,0 +1,125 @@
+name: Build GvOS ISO
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-iso:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            live-build \
+            debootstrap \
+            squashfs-tools \
+            xorriso \
+            isolinux \
+            syslinux-efi \
+            grub-pc-bin \
+            grub-efi-amd64-bin \
+            mtools \
+            plymouth-themes
+      
+      - name: Setup build environment
+        run: |
+          mkdir -p build
+          cd build
+          
+          # Initialize live-build configuration
+          lb config \
+            --architectures amd64 \
+            --distribution bookworm \
+            --archive-areas "main contrib non-free non-free-firmware" \
+            --binary-images iso-hybrid \
+            --mode debian \
+            --system live \
+            --debian-installer false
+      
+      - name: Copy customization files
+        run: |
+          cd build
+          
+          # Copy hooks
+          mkdir -p config/hooks/live
+          cp -r ../config/hooks/live/* config/hooks/live/ || true
+          
+          # Copy includes.chroot (backgrounds, sounds, themes, Plymouth, scripts)
+          mkdir -p config/includes.chroot
+          cp -r ../config/includes.chroot/* config/includes.chroot/ || true
+          
+          # Make hook scripts executable
+          chmod +x config/hooks/live/*.hook.chroot || true
+          
+          # Make scripts in usr/bin executable
+          find config/includes.chroot/usr/bin -type f -exec chmod +x {} \; || true
+          find config/includes.chroot/usr/share/sounds -name "*.sh" -exec chmod +x {} \; || true
+      
+      - name: Configure package lists
+        run: |
+          cd build
+          mkdir -p config/package-lists
+          
+          # Create desktop package list
+          cat > config/package-lists/desktop.list.chroot <<EOF
+          # XFCE Desktop Environment
+          xfce4
+          xfce4-goodies
+          lightdm
+          lightdm-gtk-greeter
+          
+          # Themes and Icons
+          papirus-icon-theme
+          adwaita-qt
+          
+          # Plymouth Boot Splash
+          plymouth
+          plymouth-themes
+          
+          # Audio
+          pulseaudio
+          pavucontrol
+          alsa-utils
+          
+          # Utilities
+          network-manager
+          network-manager-gnome
+          
+          # Tools for aspect ratio detection
+          x11-xserver-utils
+          
+          # Display manager
+          xserver-xorg
+          EOF
+      
+      - name: Build ISO
+        run: |
+          cd build
+          
+          # Build the system
+          sudo lb build
+      
+      - name: List generated files
+        run: |
+          cd build
+          ls -lh *.iso || echo "No ISO file generated"
+          ls -lh *.hybrid.iso || echo "No hybrid ISO file generated"
+      
+      - name: Upload ISO artifact
+        if: success()
+        uses: actions/upload-artifact@v3
+        with:
+          name: gvos-live-amd64
+          path: build/*.iso
+          retention-days: 30

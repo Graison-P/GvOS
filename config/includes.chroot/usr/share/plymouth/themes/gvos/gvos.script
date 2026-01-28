@@ -1,0 +1,90 @@
+// GvOS Plymouth Boot Animation Script
+
+// Screen and window setup
+Window.GetMaxWidth = fun() { return Window.GetWidth(); };
+Window.GetMaxHeight = fun() { return Window.GetHeight(); };
+
+screen_width = Window.GetWidth();
+screen_height = Window.GetHeight();
+
+// Load the GvOS icon
+logo.image = Image("gvosicon.png");
+logo.sprite = Sprite(logo.image);
+
+// Center the logo on screen
+logo.x = screen_width / 2 - logo.image.GetWidth() / 2;
+logo.y = screen_height / 2 - logo.image.GetHeight() / 2;
+logo.sprite.SetPosition(logo.x, logo.y, 10000);
+
+// Animation variables
+logo.opacity = 1.0;
+logo.scale = 1.0;
+animation_time = 0;
+animation_speed = 0.05;
+
+// Pulse animation effect
+fun refresh_callback() {
+    animation_time += animation_speed;
+    
+    // Create a pulsing effect (sine wave from 0.85 to 1.0)
+    pulse = 0.85 + Math.Sin(animation_time) * 0.15;
+    
+    // Apply pulse to opacity for breathing effect
+    logo.sprite.SetOpacity(pulse);
+}
+
+Plymouth.SetRefreshFunction(refresh_callback);
+
+// Progress bar (optional, below the logo)
+progress_box.image = Image.Text("", 1, 1, 1);
+progress_box.sprite = Sprite(progress_box.image);
+
+fun progress_callback(duration, progress) {
+    if (progress_box.image.GetWidth() != Math.Int(progress * screen_width)) {
+        progress_box.image = Image.Text("", 1, 1, 1);
+        progress_box.sprite.SetImage(progress_box.image);
+    }
+}
+
+Plymouth.SetBootProgressFunction(progress_callback);
+
+// Display message handler
+message_sprite = Sprite();
+message_sprite.SetPosition(10, screen_height - 50, 10000);
+
+fun message_callback(text) {
+    my_image = Image.Text(text, 1, 1, 1);
+    message_sprite.SetImage(my_image);
+}
+
+Plymouth.SetMessageFunction(message_callback);
+
+// Display normal mode
+fun display_normal_callback() {
+    logo.sprite.SetOpacity(1);
+}
+
+// Display password prompt
+fun display_password_callback(prompt, bullets) {
+    question_image = Image.Text(prompt, 1, 1, 1);
+    question_sprite = Sprite(question_image);
+    question_sprite.SetX(screen_width / 2 - question_image.GetWidth() / 2);
+    question_sprite.SetY(screen_height * 0.7);
+    question_sprite.SetZ(10000);
+    
+    bullets_image = Image.Text(bullets, 1, 1, 1);
+    bullets_sprite = Sprite(bullets_image);
+    bullets_sprite.SetX(screen_width / 2 - bullets_image.GetWidth() / 2);
+    bullets_sprite.SetY(screen_height * 0.75);
+    bullets_sprite.SetZ(10000);
+}
+
+Plymouth.SetDisplayNormalFunction(display_normal_callback);
+Plymouth.SetDisplayPasswordFunction(display_password_callback);
+
+// Quit callback
+fun quit_callback() {
+    logo.sprite.SetOpacity(0);
+}
+
+Plymouth.SetQuitFunction(quit_callback);
