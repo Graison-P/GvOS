@@ -51,20 +51,27 @@ jobs:
             --debian-installer false \
             --security false
 
-          # Create hook to fix Contents file URL by patching lb_chroot_linux-image
-          mkdir -p config/hooks/normal
-          echo '#!/bin/sh' > config/hooks/normal/0010-fix-contents-url.hook.chroot
-          echo '# Fix the Contents-amd64.gz URL in lb_chroot_linux-image' >> config/hooks/normal/0010-fix-contents-url.hook.chroot
-          echo '# The script tries to download from /dists/bookworm/Contents-amd64.gz' >> config/hooks/normal/0010-fix-contents-url.hook.chroot
-          echo '# but the correct URL is /dists/bookworm/main/Contents-amd64.gz' >> config/hooks/normal/0010-fix-contents-url.hook.chroot
-          echo '' >> config/hooks/normal/0010-fix-contents-url.hook.chroot
-          echo '# Find and patch the lb_chroot_linux-image script' >> config/hooks/normal/0010-fix-contents-url.hook.chroot
-          echo 'if [ -f /usr/share/live/build/scripts/build/chroot_linux-image ]; then' >> config/hooks/normal/0010-fix-contents-url.hook.chroot
-          echo '    sed -i '\''s|/dists/${DISTRIBUTION}/Contents-|/dists/${DISTRIBUTION}/main/Contents-|g'\'' /usr/share/live/build/scripts/build/chroot_linux-image' >> config/hooks/normal/0010-fix-contents-url.hook.chroot
-          echo 'fi' >> config/hooks/normal/0010-fix-contents-url.hook.chroot
-          echo '' >> config/hooks/normal/0010-fix-contents-url.hook.chroot
-          echo 'exit 0' >> config/hooks/normal/0010-fix-contents-url.hook.chroot
-          chmod +x config/hooks/normal/0010-fix-contents-url.hook.chroot
+          # Create a binary hook that patches lb live-build to skip the Contents-amd64.gz download
+          # This works around the 404 error since Contents-amd64.gz is in the repository
+          mkdir -p config/hooks/normal  
+          echo '#!/bin/bash' > config/hooks/normal/9999-skip-contents-download.hook.binary
+          echo '# This binary hook patches the lb_chroot_linux-image script to skip Contents download' >> config/hooks/normal/9999-skip-contents-download.hook.binary
+          echo 'set -e' >> config/hooks/normal/9999-skip-contents-download.hook.binary
+          echo '' >> config/hooks/normal/9999-skip-contents-download.hook.binary
+          echo 'echo "I: Patching lb_chroot_linux-image to skip Contents-amd64.gz download..."' >> config/hooks/normal/9999-skip-contents-download.hook.binary
+          echo '' >> config/hooks/normal/9999-skip-contents-download.hook.binary
+          echo 'LB_SCRIPT="/usr/lib/live/build/chroot_linux-image"' >> config/hooks/normal/9999-skip-contents-download.hook.binary
+          echo '' >> config/hooks/normal/9999-skip-contents-download.hook.binary
+          echo 'if [ -f "$LB_SCRIPT" ]; then' >> config/hooks/normal/9999-skip-contents-download.hook.binary
+          echo '    cp "$LB_SCRIPT" "$LB_SCRIPT.bak"' >> config/hooks/normal/9999-skip-contents-download.hook.binary
+          echo '    sed -i '\''s/^\(\s*wget.*Contents-.*\.gz\)/# \1 # Skipped/'\'' "$LB_SCRIPT"' >> config/hooks/normal/9999-skip-contents-download.hook.binary
+          echo '    echo "I: Successfully patched lb_chroot_linux-image"' >> config/hooks/normal/9999-skip-contents-download.hook.binary
+          echo 'else' >> config/hooks/normal/9999-skip-contents-download.hook.binary
+          echo '    echo "W: lb_chroot_linux-image script not found"' >> config/hooks/normal/9999-skip-contents-download.hook.binary
+          echo 'fi' >> config/hooks/normal/9999-skip-contents-download.hook.binary
+          echo '' >> config/hooks/normal/9999-skip-contents-download.hook.binary
+          echo 'exit 0' >> config/hooks/normal/9999-skip-contents-download.hook.binary
+          chmod +x config/hooks/normal/9999-skip-contents-download.hook.binary
 
           # Add security and updates repositories for Debian Bookworm
           # Debian 12 (Bookworm) uses 'bookworm-security' instead of 'bookworm/updates'
