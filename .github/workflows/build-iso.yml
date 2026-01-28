@@ -23,145 +23,32 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            live-build \
             debootstrap \
             squashfs-tools \
             xorriso \
             isolinux \
             syslinux-efi \
+            syslinux-common \
             grub-pc-bin \
             grub-efi-amd64-bin \
-            mtools \
-            plymouth-themes
+            mtools
 
-      - name: Setup build environment
+      - name: Build ISO with custom builder
         run: |
-          mkdir -p build
-          cd build
-
-          # Initialize live-build configuration
-          # Note: --security false to prevent old-style security repo from being added
-          lb config \
-            --architectures amd64 \
-            --distribution bookworm \
-            --archive-areas "main contrib non-free non-free-firmware" \
-            --binary-images iso-hybrid \
-            --mode debian \
-            --system live \
-            --debian-installer false \
-            --security false
-
-          # Create a binary hook that patches lb live-build to skip the Contents-amd64.gz download
-          # This works around the 404 error since Contents-amd64.gz is in the repository
-          mkdir -p config/hooks/normal  
-          echo '#!/bin/bash' > config/hooks/normal/9999-skip-contents-download.hook.binary
-          echo '# This binary hook patches the lb_chroot_linux-image script to skip Contents download' >> config/hooks/normal/9999-skip-contents-download.hook.binary
-          echo 'set -e' >> config/hooks/normal/9999-skip-contents-download.hook.binary
-          echo '' >> config/hooks/normal/9999-skip-contents-download.hook.binary
-          echo 'echo "I: Patching lb_chroot_linux-image to skip Contents-amd64.gz download..."' >> config/hooks/normal/9999-skip-contents-download.hook.binary
-          echo '' >> config/hooks/normal/9999-skip-contents-download.hook.binary
-          echo 'LB_SCRIPT="/usr/lib/live/build/chroot_linux-image"' >> config/hooks/normal/9999-skip-contents-download.hook.binary
-          echo '' >> config/hooks/normal/9999-skip-contents-download.hook.binary
-          echo 'if [ -f "$LB_SCRIPT" ]; then' >> config/hooks/normal/9999-skip-contents-download.hook.binary
-          echo '    cp "$LB_SCRIPT" "$LB_SCRIPT.bak"' >> config/hooks/normal/9999-skip-contents-download.hook.binary
-          echo '    sed -i '\''s/^\(\s*wget.*Contents-.*\.gz\)/# \1 # Skipped/'\'' "$LB_SCRIPT"' >> config/hooks/normal/9999-skip-contents-download.hook.binary
-          echo '    echo "I: Successfully patched lb_chroot_linux-image"' >> config/hooks/normal/9999-skip-contents-download.hook.binary
-          echo 'else' >> config/hooks/normal/9999-skip-contents-download.hook.binary
-          echo '    echo "W: lb_chroot_linux-image script not found"' >> config/hooks/normal/9999-skip-contents-download.hook.binary
-          echo 'fi' >> config/hooks/normal/9999-skip-contents-download.hook.binary
-          echo '' >> config/hooks/normal/9999-skip-contents-download.hook.binary
-          echo 'exit 0' >> config/hooks/normal/9999-skip-contents-download.hook.binary
-          chmod +x config/hooks/normal/9999-skip-contents-download.hook.binary
-
-          # Add security and updates repositories for Debian Bookworm
-          # Debian 12 (Bookworm) uses 'bookworm-security' instead of 'bookworm/updates'
-          mkdir -p config/archives
+          # Make custom builder executable
+          chmod +x build-custom.sh
           
-          # Security repository
-          echo "deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware" > config/archives/security.list.chroot
-          echo "deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware" > config/archives/security.list.binary
-          
-          # Updates repository  
-          echo "deb http://ftp.debian.org/debian bookworm-updates main contrib non-free non-free-firmware" > config/archives/bookworm-updates.list.chroot
-          echo "deb http://ftp.debian.org/debian bookworm-updates main contrib non-free non-free-firmware" > config/archives/bookworm-updates.list.binary
+          # Run custom builder (bypasses live-build wget issues)
+          sudo ./build-custom.sh
 
-      - name: Copy customization files
+      - name: List generated ISO
         run: |
-          cd build
-
-          # Copy hooks
-          mkdir -p config/hooks/live
-          cp -r ../config/hooks/live/* config/hooks/live/ || true
-
-          # Copy includes.chroot (backgrounds, sounds, themes, Plymouth, scripts)
-          mkdir -p config/includes.chroot
-          cp -r ../config/includes.chroot/* config/includes.chroot/ || true
-
-          # Make hook scripts executable
-          chmod +x config/hooks/live/*.hook.chroot || true
-
-          # Make scripts in usr/bin executable
-          find config/includes.chroot/usr/bin -type f -exec chmod +x {} \; || true
-          find config/includes.chroot/usr/share/sounds -name "*.sh" -exec chmod +x {} \; || true
-
-      - name: Configure package lists
-        run: |
-          cd build
-          mkdir -p config/package-lists
-
-          # Create desktop package list
-          cat > config/package-lists/desktop.list.chroot <<EOF
-          # XFCE Desktop Environment
-          xfce4
-          xfce4-goodies
-          lightdm
-          lightdm-gtk-greeter
-
-          # Themes and Icons
-          papirus-icon-theme
-          adwaita-qt
-
-          # Plymouth Boot Splash
-          plymouth
-          plymouth-themes
-
-          # Audio
-          pulseaudio
-          pavucontrol
-          alsa-utils
-
-          # Utilities
-          network-manager
-          network-manager-gnome
-
-          # Tools for aspect ratio detection
-          x11-xserver-utils
-
-          # Display manager
-          xserver-xorg
-          
-          # GUI Installer
-          calamares
-          calamares-settings-debian
-          EOF
-
-      - name: Build ISO
-        run: |
-          cd build
-
-          # Build the system
-          sudo lb build
-
-      - name: List generated files
-        run: |
-          cd build
           ls -lh *.iso || echo "No ISO file generated"
-          ls -lh *.hybrid.iso || echo "No hybrid ISO file generated"
 
       - name: Upload ISO artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: gvos-live-amd64
-          path: build/*.iso
+          path: "*.iso"
           retention-days: 30
