@@ -41,6 +41,7 @@ jobs:
 
           # Initialize live-build configuration
           # Note: --security false to prevent old-style security repo from being added
+          # Note: --apt-indices none to completely disable indices download
           lb config \
             --architectures amd64 \
             --distribution bookworm \
@@ -50,11 +51,7 @@ jobs:
             --system live \
             --debian-installer false \
             --security false \
-            --apt-indices false
-
-          # Disable APT indices download to avoid 404 errors - use apt.conf.d instead of hooks
-          mkdir -p config/apt/apt.conf.d
-          echo 'Acquire::IndexTargets::deb::Contents-deb::DefaultEnabled "false";' > config/apt/apt.conf.d/99no-contents
+            --apt-indices none
 
           # Add security and updates repositories for Debian Bookworm
           # Debian 12 (Bookworm) uses 'bookworm-security' instead of 'bookworm/updates'
