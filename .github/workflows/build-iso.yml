@@ -117,6 +117,10 @@ jobs:
 
           # Display manager
           xserver-xorg
+          
+          # GUI Installer
+          calamares
+          calamares-settings-debian
           EOF
 
       - name: Build ISO
