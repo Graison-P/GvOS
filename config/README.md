@@ -57,6 +57,9 @@ Files and directories placed here will be included in the live system's root fil
 - **Execution order**: Scripts are executed in numerical/alphabetical order
 - **Current scripts**:
   - `01-customize-gui.hook.chroot` - Applies XFCE customizations (wallpaper, theme settings)
+    - Creates xfce4-desktop.xml to set default wallpaper
+    - Creates xsettings.xml to configure theme (Adwaita-dark) and icon theme (Papirus-Dark)
+    - Note: Ensure referenced themes are installed in your build or use themes available by default
 
 ## How to Customize
 
@@ -88,9 +91,10 @@ Files and directories placed here will be included in the live system's root fil
 ## Sample Hook Script
 
 The included `01-customize-gui.hook.chroot` demonstrates:
-- Setting a default wallpaper for XFCE
-- Configuring XFCE theme and icon theme
-- Creating default configuration files in `/etc/skel/`
+- Creating directory structure for XFCE configuration in `/etc/skel/`
+- Creating xfce4-desktop.xml to set the default wallpaper (`/usr/share/backgrounds/gvos-background1.jpg`)
+- Creating xsettings.xml to configure theme (Adwaita-dark) and icon theme (Papirus-Dark)
+- All configuration files are placed in `/etc/skel/` so new users inherit these settings
 
 ## Build Process Integration
 
