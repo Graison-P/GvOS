@@ -1,0 +1,18 @@
+#!/bin/sh
+# Apply XFCE customizations
+
+# Set default wallpaper for XFCE
+test -d /usr/share/backgrounds || mkdir -p /usr/share/backgrounds
+xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -n -t string -s /usr/share/backgrounds/gvos-background1.jpg
+
+# Configure default XFCE settings
+test -d /etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/ || mkdir -p /etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/
+cat <<EOF > /etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xsettings" version="1.0">
+  <property name="Net" type="empty">
+    <property name="ThemeName" type="string" value="Adwaita-dark"/>
+    <property name="IconThemeName" type="string" value="Papirus-Dark"/>
+  </property>
+</channel>
+EOF
