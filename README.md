@@ -96,6 +96,7 @@ For detailed documentation, see [/usr/bin/INSTALLER-README.md](/usr/bin/INSTALLE
 Contributions are welcome! Please feel free to submit issues and pull requests.
 
 ## License
+The license supplied with this software is BSD-3, which is what Debian reccommend for modifications.
 
 Please refer to the LICENSE file for licensing information.
 
