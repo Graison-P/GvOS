@@ -41,7 +41,6 @@ jobs:
 
           # Initialize live-build configuration
           # Note: --security false to prevent old-style security repo from being added
-          # Note: --apt-indices none to completely disable indices download
           lb config \
             --architectures amd64 \
             --distribution bookworm \
@@ -50,8 +49,22 @@ jobs:
             --mode debian \
             --system live \
             --debian-installer false \
-            --security false \
-            --apt-indices none
+            --security false
+
+          # Create hook to fix Contents file URL by patching lb_chroot_linux-image
+          mkdir -p config/hooks/normal
+          echo '#!/bin/sh' > config/hooks/normal/0010-fix-contents-url.hook.chroot
+          echo '# Fix the Contents-amd64.gz URL in lb_chroot_linux-image' >> config/hooks/normal/0010-fix-contents-url.hook.chroot
+          echo '# The script tries to download from /dists/bookworm/Contents-amd64.gz' >> config/hooks/normal/0010-fix-contents-url.hook.chroot
+          echo '# but the correct URL is /dists/bookworm/main/Contents-amd64.gz' >> config/hooks/normal/0010-fix-contents-url.hook.chroot
+          echo '' >> config/hooks/normal/0010-fix-contents-url.hook.chroot
+          echo '# Find and patch the lb_chroot_linux-image script' >> config/hooks/normal/0010-fix-contents-url.hook.chroot
+          echo 'if [ -f /usr/share/live/build/scripts/build/chroot_linux-image ]; then' >> config/hooks/normal/0010-fix-contents-url.hook.chroot
+          echo '    sed -i '\''s|/dists/${DISTRIBUTION}/Contents-|/dists/${DISTRIBUTION}/main/Contents-|g'\'' /usr/share/live/build/scripts/build/chroot_linux-image' >> config/hooks/normal/0010-fix-contents-url.hook.chroot
+          echo 'fi' >> config/hooks/normal/0010-fix-contents-url.hook.chroot
+          echo '' >> config/hooks/normal/0010-fix-contents-url.hook.chroot
+          echo 'exit 0' >> config/hooks/normal/0010-fix-contents-url.hook.chroot
+          chmod +x config/hooks/normal/0010-fix-contents-url.hook.chroot
 
           # Add security and updates repositories for Debian Bookworm
           # Debian 12 (Bookworm) uses 'bookworm-security' instead of 'bookworm/updates'
