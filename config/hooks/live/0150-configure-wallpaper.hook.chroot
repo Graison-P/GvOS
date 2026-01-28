@@ -1,0 +1,55 @@
+#!/bin/bash
+# Hook to set up desktop wallpaper with resolution detection
+
+set -e
+
+echo "Setting up desktop wallpaper with resolution detection..."
+
+# Create a script to detect resolution and set appropriate wallpaper
+mkdir -p /etc/xdg/autostart
+cat > /usr/local/bin/gvos-set-wallpaper <<'SCRIPT'
+#!/bin/bash
+# Detect screen resolution and set appropriate wallpaper
+
+# Get screen resolution
+RESOLUTION=$(xrandr | grep '\*' | awk '{print $1}' | head -1)
+WIDTH=$(echo $RESOLUTION | cut -d'x' -f1)
+HEIGHT=$(echo $RESOLUTION | cut -d'x' -f2)
+
+# Calculate aspect ratio
+if [ -n "$WIDTH" ] && [ -n "$HEIGHT" ] && [ "$HEIGHT" -gt 0 ]; then
+    # Check if it's 4:3 ratio (within tolerance)
+    # 4:3 = 1.333, allow 1.3-1.4 range
+    RATIO=$(echo "scale=2; $WIDTH / $HEIGHT" | bc)
+    IS_4BY3=$(echo "$RATIO >= 1.25 && $RATIO <= 1.45" | bc)
+    
+    if [ "$IS_4BY3" -eq 1 ]; then
+        WALLPAPER="/usr/share/backgrounds/gvos/wallpaper4by3.png"
+    else
+        WALLPAPER="/usr/share/backgrounds/gvos/wallpaper.png"
+    fi
+else
+    # Default to widescreen
+    WALLPAPER="/usr/share/backgrounds/gvos/wallpaper.png"
+fi
+
+# Set wallpaper for all workspaces
+for i in 0 1 2 3; do
+    xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace$i/last-image -s "$WALLPAPER" 2>/dev/null || true
+done
+SCRIPT
+
+chmod +x /usr/local/bin/gvos-set-wallpaper
+
+# Create autostart entry
+cat > /etc/xdg/autostart/gvos-wallpaper.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Name=GvOS Wallpaper
+Comment=Set GvOS wallpaper based on screen resolution
+Exec=/usr/local/bin/gvos-set-wallpaper
+OnlyShowIn=XFCE;
+X-XFCE-Autostart-Override=true
+EOF
+
+echo "Desktop wallpaper configuration complete."
