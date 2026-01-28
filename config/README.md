@@ -19,7 +19,7 @@ Files and directories placed here will be included in the live system's root fil
 - **Purpose**: Default wallpapers and background images
 - **Usage**: Place your custom wallpapers here
 - **File naming**: Use descriptive names (e.g., `gvos-background1.jpg`, `gvos-background2.jpg`)
-- **Supported formats**: JPG, PNG
+- **Supported formats**: JPG, PNG (files can have any appropriate extension)
 - **Current files**:
   - `gvos-background1.jpg` - Primary default wallpaper (wide format)
   - `gvos-background2.jpg` - Secondary wallpaper (4:3 format)
@@ -32,7 +32,7 @@ Files and directories placed here will be included in the live system's root fil
   - Format: OGG Vorbis
   - Sample Rate: 44100 Hz
   - Channels: Stereo
-  - Duration: 1-5 seconds for notifications, up to 10 seconds for boot sounds
+  - Duration: 1-3 seconds for notifications, up to 10 seconds for boot sounds
 
 #### `includes.chroot/usr/share/themes/`
 - **Purpose**: Custom XFCE themes for taskbar, start button, and window styling

@@ -1,9 +1,14 @@
 #!/bin/sh
+set -e
 # Apply XFCE customizations
 
 # Set default wallpaper for XFCE
 test -d /usr/share/backgrounds || mkdir -p /usr/share/backgrounds
-xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -n -t string -s /usr/share/backgrounds/gvos-background1.jpg
+
+# Only configure XFCE if xfconf-query is available
+if command -v xfconf-query >/dev/null 2>&1; then
+    xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -s /usr/share/backgrounds/gvos-background1.jpg || true
+fi
 
 # Configure default XFCE settings
 test -d /etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/ || mkdir -p /etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/
