@@ -1,6 +1,6 @@
 [Plymouth Theme]
-Name=GvOS
-Description=GvOS Boot Animation with Icon
+Name=GvOS Boot Screen
+Description=GvOS custom boot animation
 ModuleName=script
 
 [script]
