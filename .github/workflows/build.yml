@@ -1,0 +1,53 @@
+name: Build GvOS
+on: 
+  workflow_dispatch: # start the build manually
+  push:
+    branches:
+      - main
+
+jobs:
+  build-iso:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Build Tools
+        run: |
+          sudo apt update
+          sudo apt install -y live-build debootstrap isolinux xorriso
+
+      - name: Configure Live-Build
+        run: |
+          mkdir -p gvos-build && cd gvos-build
+          # IMPORTANT: We enable contrib, non-free, and non-free-firmware for Steam/Chromium/WiFi
+          lb config --architecture amd64 \
+                    --distribution bookworm \
+                    --archive-areas "main contrib non-free non-free-firmware" \
+                    --mirror-binary http://deb.debian.org/debian/ \
+                    --debian-installer live \
+                    --bootloader syslinux \
+                    --iso-application "GvOS" \
+                    --iso-volume "GvOS-Live"
+
+      - name: Sync Repo Files to Build Directory
+        run: |
+          # This moves config folders into the actual build space
+          cp -r config/* gvos-build/config/ || true
+
+      - name: Enable i386 Architecture (For Steam)
+        run: |
+          # Steam requires 32-bit libs to even 'exist' in the package list... Why does Valve need 32 bit libs???
+          cd gvos-build
+          echo "dpkg --add-architecture i386" > config/hooks/live/00-add-i386.hook.chroot
+
+      - name: Build the ISO
+        run: |
+          cd gvos-build
+          sudo lb build
+
+      - name: Upload GvOS Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GvOS-Installation-Media
+          path: gvos-build/*.iso
