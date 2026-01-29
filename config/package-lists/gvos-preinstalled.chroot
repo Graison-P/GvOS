@@ -1,3 +1,13 @@
+# installing the installer... how funny.
+calamares
+calamares-settings-debian
+
+# get gparted
+udisks2
+dosfstools
+e2fsprogs
+grub-efi-amd64-bin
+
 # themeing and crap
 xfce4
 xfce4-goodies
