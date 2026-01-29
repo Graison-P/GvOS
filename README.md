@@ -1,75 +1,38 @@
 # GvOS
 
-GvOS is a custom operating system based on Debian, designed for flexibility and customization.
+GvOS is a OS based off of Debian, designed for flexibility and customization.
 
 ## Overview
 
-This repository contains the foundational structure for GvOS, including a Debian-compatible filesystem hierarchy, configuration files, and customizable boot and sound components.
+This repository contains the foundational structure for GvOS, including a Debian-compatible filesystem hierarchy (which is completly useless as debian already installs it soo.....), configuration files, and customizable boot and sound components.
 
 ## Directory Structure
 
 GvOS follows the Filesystem Hierarchy Standard (FHS) commonly used in Linux/Unix systems:
 
-### Core Directories
+### Core File includes
+Sounds
 
-- **`/bin`** - Essential command binaries (for all users)
-- **`/boot`** - Boot loader files (kernel, initrd, GRUB configuration)
-- **`/dev`** - Device files
-- **`/etc`** - System configuration files
-- **`/home`** - User home directories
-- **`/lib`** - Essential shared libraries and kernel modules
-- **`/opt`** - Optional/add-on application software packages
-- **`/proc`** - Virtual filesystem providing process and kernel information
-- **`/run`** - Run-time variable data
-- **`/srv`** - Data for services provided by the system
-- **`/sys`** - Virtual filesystem for system information
-- **`/tmp`** - Temporary files
-- **`/usr`** - User binaries and read-only data
-  - **`/usr/bin`** - Non-essential command binaries
-  - **`/usr/lib`** - Libraries for binaries in /usr/bin
-  - **`/usr/share`** - Architecture-independent data
-  - **`/usr/share/sounds`** - System sound files
-- **`/var`** - Variable data (logs, caches, temporary files)
-  - **`/var/log`** - Log files
-  - **`/var/tmp`** - Temporary files preserved between reboots
-  - **`/var/cache`** - Application cache data
+Wallpapers
 
+Pixmaps
 ## Key Features
 
 ### 1. Configuration Files
 
-Essential system configuration files are located in `/etc`:
+Essential system configuration files are located in `config`.
 
-- **`/etc/fstab`** - Filesystem mount table
-- **`/etc/hostname`** - System hostname
-- **`/etc/hosts`** - Static hostname-to-IP mappings
-- **`/etc/os-release`** - Operating system identification
-- **`/etc/network/interfaces`** - Network interface configuration
-- **`/etc/default/grub`** - GRUB bootloader settings
+They are simple, so they will not be listed here.
 
-See `/etc/README.md` for detailed information about configuration files.
 
 ### 2. Custom Boot Process
 
-The boot process is managed through GRUB (Grand Unified Bootloader):
-
-- **`/boot/grub/grub.cfg`** - GRUB menu configuration
-- **`/etc/default/grub`** - GRUB settings (timeout, default entry, kernel parameters)
-- **`/boot/vmlinuz-placeholder`** - Kernel placeholder
-- **`/boot/initrd.img-placeholder`** - Initial RAM disk placeholder
-
-See `/boot/README.md` for detailed information about the boot process.
+The boot process is managed through GRUB (Grand Unified Bootloader). GRUB is configured by defualt on Debian's installation.
 
 ### 3. Custom Sounds
 
-System event sounds are located in `/usr/share/sounds`:
+System event sounds are located in `/config/includes.chroot/usr/share/sounds`.
 
-- **`boot.ogg`** - Startup sound
-- **`shutdown.ogg`** - Shutdown sound
-- **`error.ogg`** - Error notification sound
-- **`notification.ogg`** - General notification sound
-
-See `/usr/share/sounds/README.md` for information on customizing sounds.
 
 ## Customization Guide
 
@@ -100,20 +63,9 @@ See `/usr/share/sounds/README.md` for information on customizing sounds.
 ## Installation
 
 GvOS includes a comprehensive fullscreen installer that provides an Ubuntu Server-like installation experience and automatically installs the latest Debian release.
+(This is depricated due to it not likely working.)
 
-### GvOS Installer
-
-The GvOS Installer is a kernel-based, text-mode installation program featuring:
-
-- **Fullscreen TTY Interface**: Clean, intuitive text-based UI
-- **Debian Installation**: Automatically downloads and installs the latest Debian stable release using debootstrap
-- **Network Configuration**: Automatic Wi-Fi network scanning and selection
-- **Disk Partitioning**: Automatic partitioning with UEFI/BIOS support
-- **User Configuration**: Creates user accounts with custom home directories (Music, Videos, Code, Other, Documents)
-- **Package Selection**: Choose from predefined package groups or customize
-- **Custom Commands**: Run commands in chroot during installation for advanced customization
-- **Bootloader Installation**: Automatic GRUB installation and configuration
-
+A GUI installer in ISO build is included.
 #### Prerequisites
 
 For actual installation (required):
@@ -179,6 +131,7 @@ See [ENHANCEMENTS.md](ENHANCEMENTS.md) for detailed information about recent imp
 Contributions are welcome! Please feel free to submit issues and pull requests.
 
 ## License
+The license supplied with this software is BSD-3, which is what Debian reccommend for modifications.
 
 Please refer to the LICENSE file for licensing information.
 
