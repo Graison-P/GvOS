@@ -1,0 +1,19 @@
+# themeing and crap
+xfce4
+xfce4-goodies
+xfce4-terminal
+lightdm
+lightdm-gtk-greeter
+plymouth
+plymouth-themes
+
+# google chrome
+# uh i mean browsers
+firefox-esr
+chromium
+
+# Media & Gaming WOWZAAAAA we got da STEAAAAAM (installer cuz steam itself isn't it's own deb package?? why valve?????)
+vlc
+fluidsynth
+fluid-soundfont-gm
+steam-installer
