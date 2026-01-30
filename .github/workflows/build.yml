@@ -32,7 +32,7 @@ jobs:
       - name: Upload ISO to GitHub Releases
         uses: actions/upload-release-asset@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: gvos-build/live-image-amd64.hybrid.iso
