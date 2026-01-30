@@ -1,6 +1,6 @@
-name: Build GvOS
-on: 
-  workflow_dispatch: # start the build manually
+name: Build and Release GvOS ISO
+
+on:
   push:
     branches:
       - main
@@ -9,45 +9,41 @@ jobs:
   build-iso:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      - name: Install Build Tools
+      - name: Set up QEMU and live-build
         run: |
-          sudo apt update
-          sudo apt install -y live-build debootstrap isolinux xorriso
+          sudo apt-get update
+          sudo apt-get install -y live-build debootstrap qemu-system-x86 wget
 
-      - name: Configure Live-Build
+      - name: Configure and Build GvOS ISO
         run: |
-          mkdir -p gvos-build && cd gvos-build
-          # IMPORTANT: We enable contrib, non-free, and non-free-firmware for Steam/Chromium/WiFi
-          lb config --architecture amd64 \
-                    --distribution bookworm \
-                    --archive-areas "main contrib non-free non-free-firmware" \
-                    --mirror-binary http://deb.debian.org/debian/ \
-                    --debian-installer live \
-                    --bootloader syslinux \
-                    --iso-application "GvOS" \
-                    --iso-volume "GvOS-Live"
-
-      - name: Sync Repo Files to Build Directory
-        run: |
-          # This moves config folders into the actual build space
-          cp -r config/* gvos-build/config/ || true
-
-      - name: Enable i386 Architecture (For Steam)
-        run: |
-          # Steam requires 32-bit libs to even 'exist' in the package list... Why does Valve need 32 bit libs???
+          mkdir -p gvos-build
           cd gvos-build
-          echo "dpkg --add-architecture i386" > config/hooks/live/00-add-i386.hook.chroot
-
-      - name: Build the ISO
-        run: |
-          cd gvos-build
+          sudo lb clean
+          sudo lb config \
+            --distribution=jammy \  # Change this to the release you are using
+            --architecture=amd64 \
+            --binary-images iso
           sudo lb build
+        shell: /usr/bin/bash -e {0}
 
-      - name: Upload GvOS Artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload ISO to GitHub Releases
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          name: GvOS-Installation-Media
-          path: gvos-build/*.iso
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: gvos-build/live-image-amd64.hybrid.iso
+          asset_name: gvos-iso-latest.iso
+          asset_content_type: application/octet-stream
+      
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: latest
+          release_name: "Latest GvOS ISO"
+          draft: false
+          prerelease: false
