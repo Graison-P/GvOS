@@ -12,38 +12,34 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up QEMU and live-build
+      - name: Install Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y live-build debootstrap qemu-system-x86 wget
 
-      - name: Configure and Build GvOS ISO
+      - name: Build GvOS ISO
         run: |
           mkdir -p gvos-build
           cd gvos-build
           sudo lb clean
-          sudo lb config \
-            --distribution=jammy \  # Change this to the release you are using
-            --architecture=amd64 \
-            --binary-images iso
+          sudo lb config --distribution=jammy --architecture=amd64 --binary-images iso-hybrid
           sudo lb build
         shell: /usr/bin/bash -e {0}
 
-      - name: Upload ISO to GitHub Releases
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: gvos-build/live-image-amd64.hybrid.iso
-          asset_name: gvos-iso-latest.iso
-          asset_content_type: application/octet-stream
-      
-      - name: Create Release
+      - name: Create GitHub Release
         id: create_release
         uses: actions/create-release@v1
         with:
           tag_name: latest
-          release_name: "Latest GvOS ISO"
+          release_name: "GvOS Latest ISO"
           draft: false
           prerelease: false
+          target_commitish: ${{ github.sha }}
+
+      - name: Upload ISO to GitHub Release
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: gvos-build/live-image-amd64.hybrid.iso  # Adjust the filename if different
+          asset_name: gvos-latest.iso
+          asset_content_type: application/octet-stream
