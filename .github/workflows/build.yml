@@ -17,13 +17,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y live-build debootstrap qemu-system-x86 wget
 
+      - name: Prepare GvOS Build
+        run: |
+          mkdir -p gvos-build/config/hooks
+          # Add hook script to handle start-stop-daemon conflict
+          cat << EOF > gvos-build/config/hooks/start-stop-deconflict.chroot
+          #!/bin/bash
+          dpkg-divert --remove --rename --package live-build --divert /usr/sbin/start-stop-daemon.distrib /usr/sbin/start-stop-daemon || true
+          EOF
+          chmod +x gvos-build/config/hooks/start-stop-deconflict.chroot
+
       - name: Build GvOS ISO
         run: |
-          mkdir -p gvos-build
           cd gvos-build
           sudo lb clean
           sudo lb config --distribution=jammy --architecture=amd64 --binary-images iso-hybrid
-          sudo lb build
+          sudo lb build --debug
         shell: /usr/bin/bash -e {0}
 
       - name: Create GitHub Release
@@ -34,7 +43,6 @@ jobs:
           release_name: "GvOS Latest ISO"
           draft: false
           prerelease: false
-          target_commitish: ${{ github.sha }}
 
       - name: Upload ISO to GitHub Release
         uses: actions/upload-release-asset@v1
