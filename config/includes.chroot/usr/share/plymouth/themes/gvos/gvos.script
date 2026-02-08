@@ -1,3 +1,0 @@
-theme_image = BackgroundImage("gvosicon.png");
-message_color = "#ffffff";
-on_right_image = LogoImage("gvosicon.png");
