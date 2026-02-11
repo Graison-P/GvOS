@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=GvOS
+Description=GvOS Boot Animation
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/gvos
+ScriptFile=/usr/share/plymouth/themes/gvos/gvos.script
